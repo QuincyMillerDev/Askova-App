@@ -27,3 +27,16 @@ You can check out the [create-t3-app GitHub repository](https://github.com/t3-os
 ## How do I deploy this?
 
 Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+
+## TODOS
+- [x] Make it deploy
+- [ ] Migrate existing UI from previous repository
+- [ ] Add Authentication with Clerk
+- [ ] Finish T3 Tutorial Video
+- [ ] Re-setup Gemini
+- [ ] Hook up Auth to UI
+- [ ] Add support for multiple chat sessions
+- [ ] Add settings/profile page
+
+## Extra Notes:
+- To add new shadcn components, add them to `components.json` and run `yarn generate:components`
