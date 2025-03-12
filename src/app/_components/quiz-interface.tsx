@@ -1,7 +1,7 @@
-// _components/chat-interface.tsx
+// _components/quiz-interface.tsx
 "use client";
 
-import React, { type ReactNode, useEffect, useRef } from "react";
+import React, { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Send, PanelLeft, Paperclip } from "lucide-react";
@@ -10,31 +10,21 @@ import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-interface ChatInterfaceProps {
-    messages: { id: string; role: "user" | "assistant"; content: string }[];
-    input: string;
-    isTyping: boolean;
-    onInputChange: (value: string) => void;
-    onSubmit: (e: React.FormEvent) => void;
-    isEmpty: boolean;
-    emptyState?: ReactNode;
-    modalContent?: ReactNode;
+// Optional props interface - all props are now optional
+interface QuizInterfaceProps {
     isCollapsed?: boolean;
     toggleSidebar?: () => void;
 }
 
-export function ChatInterface({
-                                  messages,
-                                  input,
-                                  isTyping,
-                                  onInputChange,
-                                  onSubmit,
-                                  isEmpty,
-                                  emptyState,
-                                  modalContent,
-                                  isCollapsed,
-                                  toggleSidebar,
-                              }: ChatInterfaceProps) {
+export function QuizInterface({
+    isCollapsed,
+    toggleSidebar,
+}: QuizInterfaceProps = {}) {
+    // Internal state management
+    const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string }>>([]);
+    const [input, setInput] = useState("");
+    const [isTyping, setIsTyping] = useState(false);
+    
     // Ref to track the end of the messages for auto-scrolling
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -42,6 +32,19 @@ export function ChatInterface({
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    // Empty placeholder
+    const emptyState = (
+        <div className="text-center p-8 text-muted-foreground">
+            Start the quiz by typing a question below.
+        </div>
+    );
+
+    // Simple submit handler
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        // No-op for UI-only setup
+    };
 
     return (
         <div className="flex h-full w-full">
@@ -65,13 +68,13 @@ export function ChatInterface({
                 </div>
             )}
 
-            {/* Outer Chat Container (full width) */}
+            {/* Outer Quiz Container (full width) */}
             <div className="flex-1 relative w-full">
                 {/* Scroll Area spans full width */}
                 <ScrollArea className="w-full h-full">
-                    {/* Centered Content Container: Limits the chat messages to a max-width */}
+                    {/* Centered Content Container: Limits the quiz messages to a max-width */}
                     <div className="mx-auto max-w-4xl space-y-4 p-4 pb-36">
-                        {isEmpty && emptyState}
+                        {messages.length === 0 && emptyState}
                         {messages.map((message) => (
                             <div
                                 key={message.id}
@@ -144,15 +147,15 @@ export function ChatInterface({
 
                 {/* Floating Input Area (full width) */}
                 <div className="mx-auto max-w-4xl absolute bottom-0 left-0 right-0 z-10 px-4 pb-4">
-                    <form onSubmit={onSubmit} className="relative">
+                    <form onSubmit={handleSubmit} className="relative">
                         <div className="bg-background/80 backdrop-blur-md rounded-2xl shadow-lg border border-border/40">
                             <Textarea
                                 value={input}
-                                onChange={(e) => onInputChange(e.target.value)}
+                                onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
-                                        onSubmit(e);
+                                        handleSubmit(e);
                                     }
                                 }}
                                 placeholder="Type your answer..."
@@ -180,8 +183,6 @@ export function ChatInterface({
                         </div>
                     </form>
                 </div>
-
-                {modalContent}
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-// _components/chat-sidebar.tsx
+// _components/quiz-sidebar.tsx
 "use client";
 
 import { Button } from "./ui/button";
@@ -6,11 +6,11 @@ import { Brain, PlusCircle } from "lucide-react";
 import { Separator } from "./ui/separator";
 import { cn } from "~/lib/utils";
 
-interface ChatSidebarProps {
+interface QuizSidebarProps {
     isCollapsed?: boolean;
 }
 
-export function ChatSidebar({ isCollapsed = false }: ChatSidebarProps) {
+export function QuizSidebar({ isCollapsed = false }: QuizSidebarProps) {
     return (
         <div className="flex flex-col h-full">
             {/* Sidebar Header */}

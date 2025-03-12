@@ -31,11 +31,10 @@ Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/ver
 ## TODOS
 - [x] Make it deploy
 - [ ] Migrate existing UI from previous repository
-- [ ] Add Authentication with Clerk
+- [ ] Add Authentication with NextAuth
 - [ ] Finish T3 Tutorial Video
 - [ ] Re-setup Gemini
-- [ ] Hook up Auth to UI
-- [ ] Add support for multiple chat sessions
+- [ ] Add support for multiple quiz sessions
 - [ ] Add settings/profile page
 
 ## Extra Notes:
