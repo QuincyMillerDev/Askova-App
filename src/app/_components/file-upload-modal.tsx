@@ -1,7 +1,7 @@
 // _components/file-upload-modal.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Sparkles, Upload, FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
@@ -16,6 +16,8 @@ interface FileUploadModalProps {
 
 export function FileUploadModal({ open, onClose, className }: FileUploadModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
+    const [studyContent, setStudyContent] = useState("");
+
 
     // Close on escape key press
     useEffect(() => {
@@ -99,7 +101,8 @@ export function FileUploadModal({ open, onClose, className }: FileUploadModalPro
                     </Tabs>
 
                     <div className="flex justify-end mt-6">
-                        <Button onClick={handleStartStudy} disabled={!studyContent.trim()}>
+                        {/*TODO: Give this button functionality*/}
+                        <Button disabled={!studyContent.trim()}>
                             Start Studying
                         </Button>
                     </div>

@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { Menu } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { DialogTitle } from "@radix-ui/react-dialog";
+import { FileUploadModal } from "~/app/_components/file-upload-modal";
 
 // Define interfaces for the props our children components expect
 interface SidebarProps {
@@ -26,9 +27,15 @@ interface QuizLayoutProps {
 export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(true);
+
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  const handleCloseFileUploadModal = () => {
+    setIsFileUploadModalOpen(false); // Function to close the modal
   };
 
   return (
@@ -60,11 +67,7 @@ export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
             <SheetDescription className="sr-only">
               This is the sidebar containing navigation options.
             </SheetDescription>
-            <SheetClose asChild>
-              <Button variant="ghost" size="icon" className="absolute top-3 right-3">
-                <span aria-hidden="true">&times;</span>
-              </Button>
-            </SheetClose>
+            <SheetClose asChild />
             {React.cloneElement(sidebar, { isCollapsed: false })}
           </div>
         </SheetContent>
@@ -73,6 +76,7 @@ export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col relative">
         {React.cloneElement(content, { isCollapsed, toggleSidebar })}
+        <FileUploadModal open={isFileUploadModalOpen} onClose={handleCloseFileUploadModal} />
       </div>
     </div>
   );

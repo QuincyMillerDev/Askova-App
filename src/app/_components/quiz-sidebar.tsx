@@ -51,6 +51,8 @@ export function QuizSidebar({ isCollapsed = false }: QuizSidebarProps) {
             </div>
 
             <Separator />
+            {/* Auth Section */}
+
         </div>
     );
 }

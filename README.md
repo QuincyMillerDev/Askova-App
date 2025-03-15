@@ -28,14 +28,32 @@ You can check out the [create-t3-app GitHub repository](https://github.com/t3-os
 
 Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
 
-## TODOS
+# TODOS
+
+### Misc
 - [x] Make it deploy
-- [ ] Migrate existing UI from previous repository
+- [x] Finish T3 Tutorial Video
+
+### Backend
 - [ ] Add Authentication with NextAuth
-- [ ] Finish T3 Tutorial Video
-- [ ] Re-setup Gemini
-- [ ] Add support for multiple quiz sessions
+- [ ] Add support for multiple quiz sessions at once
+- [ ] LLM Streaming through API
+
+### Frontend
+- [x] Migrate existing UI from previous repository
+- [ ] Add messages components that support markdown
+- [ ] LLM response streaming on frontend
 - [ ] Add settings/profile page
+- [ ] Add components for Auth
+
+
+### Core functionality
+- [ ] Re-setup Gemini
+- [ ] Setup study session flow:
+  - [ ] Upload file/pasting content
+  - [ ] Content initiates a study session
+  - [ ] AI asks open ended questions and evaluates user answers
+
 
 ## Extra Notes:
 - To add new shadcn components, add them to `components.json` and run `yarn generate:components`
