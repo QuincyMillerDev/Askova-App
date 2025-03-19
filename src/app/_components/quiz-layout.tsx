@@ -44,7 +44,7 @@ export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
       <div
         className={cn(
           "hidden md:flex h-full border-r flex-shrink-0 transition-all duration-300 bg-sidebar relative",
-          isCollapsed ? "w-16" : "w-64"
+          isCollapsed ? "w-0" : "w-64"
         )}
       >
         <div className="h-full flex flex-col w-full overflow-hidden">

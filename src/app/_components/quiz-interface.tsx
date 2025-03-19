@@ -1,7 +1,8 @@
 // _components/quiz-interface.tsx
 "use client";
 
-import React, { type ReactNode, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Send, PanelLeft, Paperclip } from "lucide-react";
@@ -17,14 +18,18 @@ interface QuizInterfaceProps {
 }
 
 export function QuizInterface({
-    isCollapsed,
-    toggleSidebar,
-}: QuizInterfaceProps = {}) {
+                                  isCollapsed,
+                                  toggleSidebar,
+                              }: QuizInterfaceProps = {}) {
     // Internal state management
-    const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string }>>([]);
+    const [messages, setMessages] = useState<
+        Array<{ id: string; role: "user" | "model"; content: string }>
+    >([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
-    
+
+    const { data: session } = useSession();
+
     // Ref to track the end of the messages for auto-scrolling
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -36,14 +41,44 @@ export function QuizInterface({
     // Empty placeholder
     const emptyState = (
         <div className="text-center p-8 text-muted-foreground">
+            {session?.user?.name ? (
+                <span>Hello {session.user.name},</span>
+            ) : (
+                <span></span>
+            )}{" "}
             Start the quiz by typing a question below.
         </div>
     );
 
-    // Simple submit handler
+    // Minimal submit handler for messages
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // No-op for UI-only setup
+        const trimmed = input.trim();
+        if (!trimmed) return;
+
+        // Create a user message
+        const userMessage = {
+            id: Date.now().toString(),
+            role: "user" as const,
+            content: trimmed,
+        };
+
+        // Update state with the new message and clear input
+        setMessages((prev) => [...prev, userMessage]);
+        setInput("");
+
+        // Simulate answering by the model
+        // TODO: Implement Gemini
+        setIsTyping(true);
+        setTimeout(() => {
+            const modelMessage = {
+                id: (Date.now() + 1).toString(),
+                role: "model" as const,
+                content: `Echo: ${trimmed}`,
+            };
+            setMessages((prev) => [...prev, modelMessage]);
+            setIsTyping(false);
+        }, 1000);
     };
 
     return (
@@ -58,10 +93,7 @@ export function QuizInterface({
                         onClick={toggleSidebar}
                     >
                         <PanelLeft
-                            className={cn(
-                                "h-4 w-4 transition-transform",
-                                isCollapsed && "rotate-180"
-                            )}
+                            className={cn("h-4 w-4 transition-transform", isCollapsed && "rotate-180")}
                         />
                         <span className="sr-only">Toggle Sidebar</span>
                     </Button>
@@ -86,7 +118,8 @@ export function QuizInterface({
                                     className={cn(
                                         "rounded-lg p-4",
                                         message.role === "user"
-                                            ? "bg-primary text-primary-foreground" : "",
+                                            ? "bg-primary text-primary-foreground"
+                                            : "",
                                         "max-w-full"
                                     )}
                                     style={{ overflowWrap: "anywhere" }}
@@ -113,12 +146,8 @@ export function QuizInterface({
                                                         {...props}
                                                     />
                                                 ),
-                                                p: (props) => (
-                                                    <p style={{ overflowWrap: "break-word" }} {...props} />
-                                                ),
-                                                a: (props) => (
-                                                    <a style={{ wordBreak: "break-all" }} {...props} />
-                                                ),
+                                                p: (props) => <p style={{ overflowWrap: "break-word" }} {...props} />,
+                                                a: (props) => <a style={{ wordBreak: "break-all" }} {...props} />,
                                             }}
                                         >
                                             {message.content}
