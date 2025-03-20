@@ -2,10 +2,16 @@
 "use client";
 
 import { Button } from "./ui/button";
-import {Brain, LogOut, PlusCircle, LogIn} from "lucide-react";
+import { Brain, LogOut, PlusCircle, LogIn } from "lucide-react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Separator } from "./ui/separator";
 import { cn } from "~/lib/utils";
+import { useRouter } from "next/navigation";
+import { api } from "~/trpc/react";
+import { v4 as uuidv4 } from "uuid";
+
+
+// TODO: Pass props in from the parent component
 
 interface QuizSidebarProps {
     isCollapsed?: boolean;
@@ -13,6 +19,32 @@ interface QuizSidebarProps {
 
 export function QuizSidebar({ isCollapsed = false }: QuizSidebarProps) {
     const {data: session } = useSession();
+    const router = useRouter();
+
+    const { data: quizzes } = api.quiz.getAll.useQuery(
+        undefined,
+        { enabled: !!session }
+    );
+    const createQuiz = api.quiz.create.useMutation({
+        onSuccess: (newQuiz) => {
+            // navigate to the new quiz session page once created
+            router.push(`/quiz/${newQuiz.id}`);
+        }
+    });
+
+    const handleNewQuiz = () => {
+        const newQuizId: string = uuidv4();
+
+        if (session?.user?.id) {
+            console.log("Authenticated")
+            // Authenticated: Use tRPC mutation to create a persistent quiz.
+            createQuiz.mutate({ title: "New Quiz", id: newQuizId });
+            // The navigation will happen in onSuccess.
+        } else {
+            // Unauthenticated: Use the generated cuid as an ephemeral quiz id.
+            router.push(`/quiz/${newQuizId}`);
+        }
+    }
 
     return (
         <div className="flex flex-col h-full">
@@ -33,15 +65,16 @@ export function QuizSidebar({ isCollapsed = false }: QuizSidebarProps) {
                 )}
             </div>
 
-            {/* Sidebar Content */}
+            {/* New Study Session */}
             <div
                 className={cn(
-                    "p-4 flex flex-col gap-2 flex-1",
+                    "p-4 flex flex-col gap-2",
                     isCollapsed && "items-center"
                 )}
             >
                 <Button
                     variant="outline"
+                    onClick={handleNewQuiz}
                     className={cn(
                         isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start"
                     )}
@@ -51,6 +84,30 @@ export function QuizSidebar({ isCollapsed = false }: QuizSidebarProps) {
                     />
                     {!isCollapsed && <span>New Study Session</span>}
                 </Button>
+            </div>
+
+            {/* List of Quizzes */}
+            <div
+                className={cn(
+                    "p-4 flex-1 overflow-y-auto",
+                    isCollapsed && "items-center"
+                )}
+            >
+                {quizzes?.map((quiz) => (
+                    <Button
+                        key={quiz.id}
+                        variant="ghost"
+                        onClick={() => router.push(`/quiz/${quiz.id}`)}
+                        className={cn(
+                            "w-full justify-start mb-2",
+                            isCollapsed && "w-8 h-8 p-0"
+                        )}
+                    >
+                        <span className="text-sm">
+                            {quiz.title}
+                        </span>
+                    </Button>
+                ))}
             </div>
 
             <Separator />

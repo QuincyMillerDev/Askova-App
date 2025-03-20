@@ -35,8 +35,9 @@ Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/ver
 - [x] Finish T3 Tutorial Video
 
 ### Backend
-- [ ] Add Authentication with NextAuth
+- [x] Add Authentication with NextAuth
 - [ ] Add support for multiple quiz sessions at once
+- [ ] Remove storing quiz sessions for unauthenticated users.
 - [ ] LLM Streaming through API
 
 ### Frontend
