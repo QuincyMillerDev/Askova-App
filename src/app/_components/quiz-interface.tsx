@@ -1,118 +1,152 @@
+// app/_components/quiz-interface.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+    useState,
+    useRef,
+    useEffect,
+    useMemo,
+    type FormEvent,
+} from "react";
 import { useSession } from "next-auth/react";
-import { Button } from "./ui/button";
-import { PanelLeft } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "~/trpc/react";
 import { db } from "~/db/dexie";
-import { type ChatMessage } from "~/types/ChatMessage";
-import {QuizInput} from "~/app/_components/quiz-input";
+import type { ChatMessage, ChatRole } from "~/types/ChatMessage";
+import { QuizInput } from "~/app/_components/quiz-input";
+import { useLiveQuery } from "dexie-react-hooks";
 
 interface QuizInterfaceProps {
     quizId: string;
+    // Although an initialMessages prop is provided, we will rely on a live query for
+    // the final source of truth.
     initialMessages: ChatMessage[];
-    isCollapsed?: boolean;
-    toggleSidebar?: () => void;
 }
 
 export function QuizInterface({
                                   quizId,
                                   initialMessages,
-                                  isCollapsed,
-                                  toggleSidebar,
                               }: QuizInterfaceProps) {
-    const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
+    // Use Dexie Live Query to always read all messages for this session.
+    const liveMessages: ChatMessage[] | undefined = useLiveQuery(
+        () => db.chatMessages.where("sessionId").equals(quizId).toArray(),
+        [quizId],
+        initialMessages // fallback when not loaded yet
+    );
+
+    // Wrap initialization of localMessages in its own useMemo().
+    const localMessages: ChatMessage[] = useMemo(
+        () => liveMessages ?? [],
+        [liveMessages]
+    );
+
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const { data: session } = useSession();
     const isAuthenticated = Boolean(session?.user?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // tRPC mutation to send a new chat message.
     const addChatMessageMutation = api.quiz.addChatMessage.useMutation();
 
-    // Auto-scroll when a new message appears.
+    // Auto-scroll when messages update.
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    }, [localMessages]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    // Effect to simulate an echo for the last user message if not already echoed.
+    useEffect(() => {
+        if (localMessages.length > 0) {
+            // Assert non-null because there is at least one message.
+            const lastMessage = localMessages[localMessages.length - 1]!;
+            if (lastMessage.role === "user") {
+                const echoExists = localMessages.some(
+                    (msg) =>
+                        msg.role === "model" &&
+                        msg.createdAt > lastMessage.createdAt &&
+                        msg.content.includes("Echo:")
+                );
+                if (!echoExists) {
+                    const timeoutId = setTimeout(() => {
+                        const modelMessage: ChatMessage = {
+                            id: Date.now() + 1, // temporary id
+                            sessionId: quizId,
+                            role: "model",
+                            content: `Echo: ${lastMessage.content}`,
+                            createdAt: new Date(),
+                        };
+                        // Persist the echo message into Dexie.
+                        void db.chatMessages.add(modelMessage);
+                    }, 1000);
+                    return () => clearTimeout(timeoutId);
+                }
+            }
+        }
+    }, [localMessages, quizId]);
+
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const trimmed = input.trim();
         if (!trimmed) return;
 
-        // Create a local message object.
+        // Create a new user message.
         const userMessage: ChatMessage = {
-            id: Date.now(), // temporary id
+            id: Date.now(), // temporary local id
             sessionId: quizId,
             role: "user",
             content: trimmed,
             createdAt: new Date(),
         };
 
-        // Update state so the message appears immediately.
-        setMessages((prev) => [...prev, userMessage]);
-        setInput("");
-
-        // Persist the message into Dexie for later synchronization.
         try {
             await db.chatMessages.add(userMessage);
         } catch (error) {
             console.error("Error saving message to Dexie:", error);
         }
 
-        // If the user is authenticated, also send the message to the server.
+        // If authenticated, send the message via tRPC.
         if (isAuthenticated) {
-            addChatMessageMutation.mutate({ quizId, role: "user", content: trimmed });
+            try {
+                addChatMessageMutation.mutate({
+                    quizId,
+                    role: "user" as ChatRole,
+                    content: trimmed,
+                });
+            } catch (error) {
+                console.error("Error persisting message via tRPC:", error);
+            }
         } else {
-            console.warn("Unauthenticated state: message stored in Dexie only.");
+            console.warn("Unauthenticated; message stored locally only.");
         }
 
-        // For demonstration: simulate a model response.
-        setIsTyping(true);
-        setTimeout(() => {
-            const modelMessage: ChatMessage = {
-                id: Date.now() + 1,
-                sessionId: quizId,
-                role: "model",
-                content: `Echo: ${trimmed}`,
-                createdAt: new Date(),
-            };
-            setMessages((prev) => [...prev, modelMessage]);
-            setIsTyping(false);
-            // Optionally store model messages in Dexie as well
-            void db.chatMessages.add(modelMessage);
-        }, 1000);
+        setInput("");
+
+        // Trigger echo simulation for the new message.
+        if (!isTyping) {
+            setIsTyping(true);
+            setTimeout(() => {
+                const modelMessage: ChatMessage = {
+                    id: Date.now() + 1,
+                    sessionId: quizId,
+                    role: "model",
+                    content: `Echo: ${trimmed}`,
+                    createdAt: new Date(),
+                };
+                void db.chatMessages.add(modelMessage);
+                setIsTyping(false);
+            }, 1000);
+        }
     };
 
     return (
         <div className="flex h-full w-full">
-            {/* Sidebar Toggle (if provided) */}
-            {toggleSidebar && (
-                <div className="hidden md:flex w-10 flex-shrink-0 flex-col items-center pt-3">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={toggleSidebar}
-                    >
-                        <PanelLeft
-                            className={cn(
-                                "h-4 w-4 transition-transform",
-                                isCollapsed && "rotate-180"
-                            )}
-                        />
-                        <span className="sr-only">Toggle Sidebar</span>
-                    </Button>
-                </div>
-            )}
             <div className="flex-1 relative w-full">
                 <ScrollArea className="w-full h-full">
                     <div className="mx-auto max-w-4xl space-y-4 p-4 pb-36">
-                        {messages.length === 0 && (
+                        {localMessages.length === 0 && (
                             <div className="text-center p-8 text-muted-foreground">
                                 {isAuthenticated && session?.user?.name ? (
                                     <span>Hello {session.user.name},</span>
@@ -122,7 +156,7 @@ export function QuizInterface({
                                 &nbsp;start the quiz by typing a question below.
                             </div>
                         )}
-                        {messages.map((message) => (
+                        {localMessages.map((message) => (
                             <div
                                 key={message.id}
                                 className={`flex ${
@@ -148,7 +182,10 @@ export function QuizInterface({
                                             components={{
                                                 pre: (props) => (
                                                     <pre
-                                                        style={{ overflowX: "auto", maxWidth: "100%" }}
+                                                        style={{
+                                                            overflowX: "auto",
+                                                            maxWidth: "100%",
+                                                        }}
                                                         {...props}
                                                     />
                                                 ),
@@ -182,7 +219,7 @@ export function QuizInterface({
                                 </div>
                             </div>
                         )}
-                        <div ref={messagesEndRef} />
+                        <div ref={messagesEndRef}></div>
                     </div>
                 </ScrollArea>
                 <QuizInput

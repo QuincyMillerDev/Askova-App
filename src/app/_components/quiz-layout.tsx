@@ -13,7 +13,7 @@ import { Menu } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { FileUploadModal } from "~/app/_components/file-upload-modal";
-import {useSidebar} from "~/app/contexts/sidebar-context";
+import {useSidebar} from "~/app/sidebar-context";
 
 interface SidebarProps {
   isCollapsed?: boolean;

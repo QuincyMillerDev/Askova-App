@@ -4,7 +4,7 @@ import React from "react";
 import { Button } from "./ui/button";
 import { PanelLeft } from "lucide-react";
 import { cn } from "~/lib/utils";
-import {useSidebar} from "~/app/contexts/sidebar-context";
+import {useSidebar} from "~/app/sidebar-context";
 
 
 export const QuizSidebarToggleButton: React.FC = () => {
