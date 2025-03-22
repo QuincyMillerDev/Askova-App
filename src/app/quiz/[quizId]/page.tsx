@@ -15,7 +15,7 @@ export default function QuizPage() {
     // Get raw quizId which may be string or string[]
     const params = useParams();
     const rawQuizId = params.quizId;
-    // Normalize to a string (if array, take the first element)
+    // Normalize to a string (if arrayed, take the first element)
     const quizId: string | undefined = rawQuizId
         ? Array.isArray(rawQuizId)
             ? rawQuizId[0]
@@ -33,8 +33,6 @@ export default function QuizPage() {
 
     // Use persistent data if available; otherwise use the route parameter and an empty array.
     const effectiveQuizId = persistentQuiz?.id ?? quizId ?? "";
-    // Note: we still pass an empty array here as fallback.
-    const initialMessages = persistentQuiz?.messages ?? [];
 
     return (
         <SidebarProvider>
@@ -43,7 +41,7 @@ export default function QuizPage() {
                 <QuizLayout
                     sidebar={<QuizSidebar />}
                     content={
-                        <QuizInterface quizId={effectiveQuizId} initialMessages={initialMessages} />
+                        <QuizInterface quizId={effectiveQuizId} />
                     }
                 />
             </main>

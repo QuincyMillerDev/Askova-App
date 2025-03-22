@@ -21,20 +21,15 @@ import { useLiveQuery } from "dexie-react-hooks";
 
 interface QuizInterfaceProps {
     quizId: string;
-    // Although an initialMessages prop is provided, we will rely on a live query for
-    // the final source of truth.
-    initialMessages: ChatMessage[];
 }
 
 export function QuizInterface({
                                   quizId,
-                                  initialMessages,
                               }: QuizInterfaceProps) {
     // Use Dexie Live Query to always read all messages for this session.
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () => db.chatMessages.where("sessionId").equals(quizId).toArray(),
         [quizId],
-        initialMessages // fallback when not loaded yet
     );
 
     // Wrap initialization of localMessages in its own useMemo().
