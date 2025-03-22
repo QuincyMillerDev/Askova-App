@@ -9,7 +9,7 @@ export default function Home() {
       <main>
         <QuizLayout
           sidebar={<QuizSidebar />}
-          content={<QuizInterface />}
+          content={<QuizInterface quizId={""} initialMessages={[]} />}
         />
       </main>
     </HydrateClient>

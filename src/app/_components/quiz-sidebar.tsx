@@ -10,25 +10,27 @@ import { cn } from "~/lib/utils";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { v4 as uuidv4 } from "uuid";
-import {type Quiz} from "~/types/Quiz";
-import {db} from "~/db/dexie";
+import { type Quiz } from "~/types/Quiz";
+import { db } from "~/db/dexie";
+import {useSyncQuizzes} from "~/app/hooks/useSyncQuizzes";
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
     const { data: session } = useSession();
     const router = useRouter();
 
+    // Call our custom hook to sync unsynced quizzes
+    const { isSyncing } = useSyncQuizzes();
+
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
 
     const createQuiz = api.quiz.create.useMutation({
         onSuccess: (newQuiz: Quiz) => {
-            // Upon successful creation on the server, you might want to ensure Dexie is reloaded.
-            // For now, simply navigate to the quiz route.
             router.push(`/quiz/${newQuiz.id}`);
         },
-        onError: error => {
+        onError: (error) => {
             console.error("Error creating quiz on the server:", error);
         }
-    })
+    });
 
     useEffect(() => {
         const loadQuizzes = async () => {
@@ -40,7 +42,7 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
             }
         };
         void loadQuizzes();
-    }, [])
+    }, [isSyncing]);
 
     const reloadQuizzes = async () => {
         try {
@@ -51,16 +53,8 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
         }
     };
 
-    // When the user clicks New Study Session, we:
-    // 1. Generate a new quizId.
-    // 2. Immediately create a new quiz record in Dexie.
-    // 3. Navigate to /quiz/{quizId}.
-    // 4. If a user is authenticated, trigger a tRPC mutation to persist the quiz on the server.
     const handleNewQuiz = async () => {
-        // Generate new quiz ID on button click.
         const newQuizId: string = uuidv4();
-
-        // Create a new quiz object following our shared type.
         const newQuiz: Quiz = {
             id: newQuizId,
             title: "New Quiz",
@@ -71,7 +65,6 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
 
         try {
             await db.quizzes.put(newQuiz);
-            // Update local state.
             await reloadQuizzes();
         } catch (error) {
             console.error("Failed to save quiz to Dexie", error);
@@ -114,7 +107,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                 <Button
                     variant="outline"
                     onClick={handleNewQuiz}
-                    className={cn(isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start")}
+                    className={cn(
+                        isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start"
+                    )}
                 >
                     <PlusCircle className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
                     {!isCollapsed && <span>New Study Session</span>}
@@ -145,7 +140,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     <Button
                         variant="outline"
                         onClick={() => signOut()}
-                        className={cn(isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start")}
+                        className={cn(
+                            isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start"
+                        )}
                     >
                         <LogOut className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
                         {!isCollapsed && <span>Logout</span>}
@@ -154,7 +151,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     <Button
                         variant="outline"
                         onClick={() => signIn()}
-                        className={cn(isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start")}
+                        className={cn(
+                            isCollapsed ? "w-8 h-8 p-0" : "w-full justify-start"
+                        )}
                     >
                         <LogIn className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
                         {!isCollapsed && <span>Login / Sign Up</span>}

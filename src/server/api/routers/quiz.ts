@@ -1,46 +1,49 @@
 // src/server/api/routers/quiz.ts
-
 import { z } from "zod";
 import {
     createTRPCRouter,
     publicProcedure,
-    protectedProcedure
+    protectedProcedure,
 } from "~/server/api/trpc";
-import {type Quiz} from "~/types/Quiz";
-import {type ChatMessage} from "~/types/ChatMessage";
+import { type Quiz } from "~/types/Quiz";
+import { type ChatMessage } from "~/types/ChatMessage";
 
 export const quizRouter = createTRPCRouter({
-    // A protected procedure ensures that a logged-in user is creating a persistent quiz.
+    // Use an "upsert" so that if a quiz with the same ID exists,
+    // we update it (specifically, we set the userId) rather than creating a duplicate.
     create: protectedProcedure
         .input(
-            // Use the shared type for input if needed (here just an optional title)
             z.object({
                 id: z.string(),
-                title: z.string().optional()
+                title: z.string().optional(),
             })
         )
         .mutation(async ({ ctx, input }): Promise<Quiz> => {
-            // At this point, ctx.session.user is guaranteed to exist.
             const userId = ctx.session.user.id;
             const now = new Date();
-            // Use Prisma to create the quiz.
-            const createdQuiz = await ctx.db.quiz.create({
-                data: {
+
+            const persistedQuiz = await ctx.db.quiz.upsert({
+                where: { id: input.id },
+                create: {
                     id: input.id,
                     title: input.title,
                     userId,
                     createdAt: now,
                     updatedAt: now,
                 },
+                update: {
+                    userId,
+                },
             });
-            // Return the result. Make sure the type matches Quiz.
+
+            // Return the quiz in the shape of our shared Quiz type.
             return {
-                id: createdQuiz.id,
-                title: createdQuiz.title ?? undefined,
-                userId: createdQuiz.userId ?? undefined,
-                createdAt: createdQuiz.createdAt,
-                updatedAt: createdQuiz.updatedAt,
-                messages: [], // For now; you can fetch related messages separately.
+                id: persistedQuiz.id,
+                title: persistedQuiz.title ?? undefined,
+                userId: persistedQuiz.userId ?? undefined,
+                createdAt: persistedQuiz.createdAt,
+                updatedAt: persistedQuiz.updatedAt,
+                messages: [], // (Messages can be added/fetched separately.)
             };
         }),
 
@@ -69,7 +72,6 @@ export const quizRouter = createTRPCRouter({
             };
         }),
 
-    // Define additional procedures (like adding a chat message)
     addChatMessage: publicProcedure
         .input(
             z.object({
@@ -79,7 +81,6 @@ export const quizRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }): Promise<ChatMessage> => {
-            // Create a new chat message using Prisma and return the shared ChatMessage type.
             const newMessage = await ctx.db.chatMessage.create({
                 data: {
                     sessionId: input.quizId,

@@ -1,4 +1,3 @@
-// src/app/_components/quiz-interface.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -11,7 +10,8 @@ import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "~/trpc/react";
-import {type ChatMessage} from "~/types/ChatMessage";
+import { db } from "~/db/dexie";
+import { type ChatMessage } from "~/types/ChatMessage";
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -30,38 +30,48 @@ export function QuizInterface({
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const { data: session } = useSession();
+    const isAuthenticated = Boolean(session?.user?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const addChatMessageMutation = api.quiz.addChatMessage.useMutation();
-
 
     // Auto-scroll when a new message appears
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmed = input.trim();
         if (!trimmed) return;
 
+        // Create a local message object.
         const userMessage: ChatMessage = {
-            id: Date.now(), // temporary id; replace with real id if available
+            id: Date.now(), // temporary id
             sessionId: quizId,
             role: "user",
             content: trimmed,
             createdAt: new Date(),
         };
 
+        // Update state so the message appears immediately.
         setMessages((prev) => [...prev, userMessage]);
         setInput("");
 
-        addChatMessageMutation.mutate({
-            quizId,
-            role: "user",
-            content: trimmed,
-        });
+        // Persist the message into Dexie for later synchronization.
+        try {
+            await db.chatMessages.add(userMessage);
+        } catch (error) {
+            console.error("Error saving message to Dexie:", error);
+        }
 
-        // For demonstration purposes: simulate a model response.
+        // If the user is authenticated, also send the message to the server.
+        if (isAuthenticated) {
+            addChatMessageMutation.mutate({ quizId, role: "user", content: trimmed });
+        } else {
+            console.warn("Unauthenticated state: message stored in Dexie only.");
+        }
+
+        // For demonstration: simulate a model response.
         setIsTyping(true);
         setTimeout(() => {
             const modelMessage: ChatMessage = {
@@ -72,21 +82,11 @@ export function QuizInterface({
                 createdAt: new Date(),
             };
             setMessages((prev) => [...prev, modelMessage]);
-            // Optionally, persist the model response via tRPC.
             setIsTyping(false);
+            // Optionally store model messages in Dexie as well
+            void db.chatMessages.add(modelMessage);
         }, 1000);
     };
-
-    const emptyState = (
-        <div className="text-center p-8 text-muted-foreground">
-            {session?.user?.name ? (
-                <span>Hello {session.user.name},</span>
-            ) : (
-                <span>Hello,</span>
-            )}{" "}
-            start the quiz by typing a question below.
-        </div>
-    );
 
     return (
         <div className="flex h-full w-full">
@@ -111,7 +111,16 @@ export function QuizInterface({
             <div className="flex-1 relative w-full">
                 <ScrollArea className="w-full h-full">
                     <div className="mx-auto max-w-4xl space-y-4 p-4 pb-36">
-                        {messages.length === 0 && emptyState}
+                        {messages.length === 0 && (
+                            <div className="text-center p-8 text-muted-foreground">
+                                {isAuthenticated && session?.user?.name ? (
+                                    <span>Hello {session.user.name},</span>
+                                ) : (
+                                    <span>Hello,</span>
+                                )}
+                                &nbsp;start the quiz by typing a question below.
+                            </div>
+                        )}
                         {messages.map((message) => (
                             <div
                                 key={message.id}
@@ -124,7 +133,7 @@ export function QuizInterface({
                                         "rounded-lg p-4",
                                         message.role === "user"
                                             ? "bg-primary text-primary-foreground"
-                                            : "bg-muted text-muted-foreground",
+                                            : "",
                                         "max-w-full"
                                     )}
                                     style={{ overflowWrap: "anywhere" }}
@@ -161,7 +170,6 @@ export function QuizInterface({
                                 </div>
                             </div>
                         ))}
-
                         {isTyping && (
                             <div className="flex justify-start">
                                 <div className="max-w-[80%] rounded-lg p-4 bg-muted">
@@ -173,11 +181,9 @@ export function QuizInterface({
                                 </div>
                             </div>
                         )}
-
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
-
                 <div className="mx-auto max-w-4xl absolute bottom-0 left-0 right-0 z-10 px-4 pb-4">
                     <form onSubmit={handleSubmit} className="relative">
                         <div className="bg-background/80 backdrop-blur-md rounded-2xl shadow-lg border border-border/40">
@@ -187,7 +193,7 @@ export function QuizInterface({
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
-                                        handleSubmit(e);
+                                        void handleSubmit(e);
                                     }
                                 }}
                                 placeholder="Type your answer..."
