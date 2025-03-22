@@ -88,8 +88,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
         <div className="flex flex-col h-full">
             {/* Sidebar Header */}
             <div
+                onClick={() => router.push('/quiz')}
                 className={cn(
-                    "flex items-center p-4 border-b",
+                    "flex items-center p-4 border-b cursor-pointer",
                     isCollapsed ? "justify-center" : "justify-between"
                 )}
             >

@@ -7,9 +7,11 @@ import { QuizInterface } from "~/app/_components/quiz-interface";
 
 interface QuizPageClientProps {
     quizId: string;
+    isCollapsed?: boolean;
+    toggleSidebar: () => void;
 }
 
-export default function QuizPageClient({ quizId }: QuizPageClientProps) {
+export default function QuizPageClient({ quizId, isCollapsed, toggleSidebar }: QuizPageClientProps) {
     const { data: session } = useSession();
     const isAuthenticated = Boolean(session?.user?.id);
 
@@ -35,10 +37,12 @@ export default function QuizPageClient({ quizId }: QuizPageClientProps) {
                     sessionId: persistentQuiz.id,
                     createdAt: msg.createdAt,
                 }))}
+                isCollapsed={isCollapsed}
+                toggleSidebar={toggleSidebar}
             />
         );
     }
 
     // Otherwise, render ephemeral mode: use the URL quizId and no preloaded messages.
-    return <QuizInterface quizId={quizId} initialMessages={[]} />;
+    return <QuizInterface quizId={quizId} initialMessages={[]} isCollapsed={isCollapsed} toggleSidebar={toggleSidebar} />;
 }
