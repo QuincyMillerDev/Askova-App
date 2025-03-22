@@ -11,7 +11,7 @@ export const QuizSidebarToggleButton: React.FC = () => {
     const { isCollapsed, toggleSidebar } = useSidebar();
 
     return (
-        <div className="absolute top-3 left-3 z-50">
+        <div className="absolute top-3 left-3 z-50 hidden md:block">
             <Button
                 variant="ghost"
                 size="icon"

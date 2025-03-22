@@ -1,3 +1,4 @@
+// src/app/_components/quiz-input.tsx
 "use client";
 
 import React from "react";
@@ -23,7 +24,9 @@ export function QuizInput({
     return (
         <div className="mx-auto max-w-4xl absolute bottom-0 left-0 right-0 z-10 px-4 pb-4">
             <form onSubmit={onSubmit} className="relative">
-                <div className="bg-background/80 backdrop-blur-md rounded-2xl shadow-lg border border-border/40">
+                <div
+                    className="bg-background/80 md:backdrop-blur-md rounded-2xl shadow-lg border border-border/40"
+                >
                     <Textarea
                         value={input}
                         onChange={onInputChange}
