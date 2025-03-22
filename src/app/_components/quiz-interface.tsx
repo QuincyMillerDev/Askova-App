@@ -3,8 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
-import { Send, PanelLeft, Paperclip } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -12,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import { api } from "~/trpc/react";
 import { db } from "~/db/dexie";
 import { type ChatMessage } from "~/types/ChatMessage";
+import {QuizInput} from "~/app/_components/quiz-input";
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -34,7 +34,7 @@ export function QuizInterface({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const addChatMessageMutation = api.quiz.addChatMessage.useMutation();
 
-    // Auto-scroll when a new message appears
+    // Auto-scroll when a new message appears.
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
@@ -90,6 +90,7 @@ export function QuizInterface({
 
     return (
         <div className="flex h-full w-full">
+            {/* Sidebar Toggle (if provided) */}
             {toggleSidebar && (
                 <div className="hidden md:flex w-10 flex-shrink-0 flex-col items-center pt-3">
                     <Button
@@ -184,41 +185,12 @@ export function QuizInterface({
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
-                <div className="mx-auto max-w-4xl absolute bottom-0 left-0 right-0 z-10 px-4 pb-4">
-                    <form onSubmit={handleSubmit} className="relative">
-                        <div className="bg-background/80 backdrop-blur-md rounded-2xl shadow-lg border border-border/40">
-                            <Textarea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        e.preventDefault();
-                                        void handleSubmit(e);
-                                    }
-                                }}
-                                placeholder="Type your answer..."
-                                className="w-full border-0 pr-20 pl-4 py-3 text-base rounded-2xl resize-none"
-                                style={{ minHeight: "100px" }}
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute left-3 bottom-3 text-muted-foreground"
-                                aria-label="Attach files"
-                            >
-                                <Paperclip className="h-5 w-5" />
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={!input.trim() || isTyping}
-                                className="absolute right-4 bottom-4 p-2 rounded-full bg-primary hover:bg-primary/90"
-                            >
-                                <Send className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    </form>
-                </div>
+                <QuizInput
+                    input={input}
+                    onInputChange={(e) => setInput(e.target.value)}
+                    onSubmit={handleSubmit}
+                    isTyping={isTyping}
+                />
             </div>
         </div>
     );

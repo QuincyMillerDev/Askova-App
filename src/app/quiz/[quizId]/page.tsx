@@ -9,9 +9,16 @@ export default async function QuizPage({ params }: QuizPageProps) {
     const { quizId } = await Promise.resolve(params);
 
     return (
-        <QuizLayout
-            sidebar={<QuizSidebar />}
-            content={<QuizPageClient quizId={quizId} />}
-        />
+      <QuizLayout
+        sidebar={<QuizSidebar />}
+        content={
+          <QuizPageClient
+            quizId={quizId}
+            toggleSidebar={function (): void {
+              throw new Error("Function not implemented.");
+            }}
+          />
+        }
+      />
     );
 }
