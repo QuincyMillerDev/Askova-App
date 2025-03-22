@@ -11,10 +11,11 @@ import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "~/trpc/react";
+import {type ChatMessage} from "~/types/ChatMessage";
 
 interface QuizInterfaceProps {
-    quizId?: number;
-    initialMessages?: Array<{ id: string; role: "user" | "model"; content: string }>;
+    quizId: string;
+    initialMessages: ChatMessage[];
     isCollapsed?: boolean;
     toggleSidebar?: () => void;
 }
@@ -25,7 +26,7 @@ export function QuizInterface({
                                   isCollapsed,
                                   toggleSidebar,
                               }: QuizInterfaceProps) {
-    const [messages, setMessages] = useState(initialMessages ?? []);
+    const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const { data: session } = useSession();
@@ -43,40 +44,35 @@ export function QuizInterface({
         const trimmed = input.trim();
         if (!trimmed) return;
 
-        // Add user message locally and persist it via tRPC
-        const userMessage = {
-            id: Date.now().toString(),
-            role: "user" as const,
+        const userMessage: ChatMessage = {
+            id: Date.now(), // temporary id; replace with real id if available
+            sessionId: quizId,
+            role: "user",
             content: trimmed,
+            createdAt: new Date(),
         };
+
         setMessages((prev) => [...prev, userMessage]);
         setInput("");
 
-        if (quizId) {
-            addChatMessageMutation.mutate({
-                quizId,
-                role: "user",
-                content: trimmed,
-            });
-        }
+        addChatMessageMutation.mutate({
+            quizId,
+            role: "user",
+            content: trimmed,
+        });
 
-        // Simulate a model reply (replace with your LLM integration)
+        // For demonstration purposes: simulate a model response.
         setIsTyping(true);
         setTimeout(() => {
-            const reply = `Echo: ${trimmed}`;
-            const modelMessage = {
-                id: (Date.now() + 1).toString(),
-                role: "model" as const,
-                content: reply,
+            const modelMessage: ChatMessage = {
+                id: Date.now() + 1,
+                sessionId: quizId,
+                role: "model",
+                content: `Echo: ${trimmed}`,
+                createdAt: new Date(),
             };
             setMessages((prev) => [...prev, modelMessage]);
-            if (quizId) {
-                addChatMessageMutation.mutate({
-                    quizId,
-                    role: "user",
-                    content: trimmed,
-                });
-            }
+            // Optionally, persist the model response via tRPC.
             setIsTyping(false);
         }, 1000);
     };
