@@ -1,65 +1,40 @@
 // src/app/auth/success/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useUserSync} from "~/hooks/useUserSync";
 import { useSession } from "next-auth/react";
+import {useLocalDataSync} from "~/hooks/useLocalDataSync";
+import {useUserSync} from "~/hooks/useUserSync";
 
 export default function AuthSuccessPage() {
-    const [error, setError] = useState<string | null>(null);
     const searchParams = useSearchParams();
     const callbackUrl = searchParams.get("callbackUrl") ?? "/quiz";
     const router = useRouter();
-    const { syncUserData } = useUserSync();
     const { status } = useSession();
+    const isAuthenticated = status === "authenticated";
+
+    // Trigger local data sync on login
+    useLocalDataSync(isAuthenticated);
+
+    // (Optional) Sync server user data back into the client.
+    const { syncUserData } = useUserSync();
 
     useEffect(() => {
         async function handleAuthSuccess() {
+            if (!isAuthenticated) return;
             try {
-                // If not authenticated, wait briefly and check again
-                if (status !== "authenticated") {
-                    console.log("Waiting for authentication to complete...");
-                    
-                    // Redirect after timeout if still not authenticated
-                    if (status === "unauthenticated") {
-                        setError("Authentication failed. Please try logging in again.");
-                        return;
-                    }
-                    
-                    // If loading, we'll retry on the next render when status changes
-                    if (status === "loading") {
-                        return;
-                    }
-                }
-
                 await syncUserData();
-                // After syncing, navigate back to the user's previous page
                 router.push(callbackUrl);
             } catch (error) {
                 console.error("Error during auth success sync:", error);
-                setError("Failed to sync your data. Please try again.");
+                // Redirect to your auth error page with an appropriate query parameter
+                router.push("/auth/error?error=sync");
             }
         }
-
         void handleAuthSuccess();
-    }, [router, callbackUrl, syncUserData, status]);
+    }, [isAuthenticated, router, callbackUrl, syncUserData]);
 
-    if (error) {
-        return (
-            <div className="flex h-screen items-center justify-center p-4">
-                <div className="text-center space-y-4">
-                    <p className="text-lg text-red-500">{error}</p>
-                    <button 
-                        className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-                        onClick={() => router.push("/auth")}
-                    >
-                        Back to Login
-                    </button>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="flex h-screen items-center justify-center p-4">
@@ -67,7 +42,9 @@ export default function AuthSuccessPage() {
                 <div className="flex justify-center">
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
-                <p className="text-lg text-muted-foreground">Synchronizing your data, please wait...</p>
+                <p className="text-lg text-muted-foreground">
+                    Synchronizing your data, please wait...
+                </p>
             </div>
         </div>
     );

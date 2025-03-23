@@ -14,8 +14,8 @@ export class AskovaClientDatabase extends Dexie {
         super("AskovaClientDatabase");
         // Define the schema for the database.
         this.version(1).stores({
-            quizzes: "id, title, userId, createdAt, updatedAt",
-            chatMessages: "++id, quizId, role, content, createdAt",
+            quizzes: "id, title, userId, createdAt, updatedAt, synced",
+            chatMessages: "++id, quizId, role, content, createdAt, synced",
             user: "id, name",
         });
     }
