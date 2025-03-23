@@ -1,8 +1,10 @@
-import { QuizLayout } from "../_components/quiz-layout";
-import { QuizSidebar } from "../_components/quiz-sidebar";
-import { QuizWelcome } from "../_components/quiz-welcome";
-import { SidebarProvider } from "../sidebar-context";
-import { QuizSidebarToggleButton } from "~/app/_components/quiz-sidebar-toggle";
+"use client";
+
+import { QuizLayout } from "../_components/quiz/quiz-layout";
+import { QuizSidebar } from "../_components/quiz/quiz-sidebar";
+import { QuizWelcome } from "../_components/quiz/quiz-welcome";
+import { SidebarProvider } from "~/app/_components/contexts/sidebar-context";
+import { QuizSidebarToggleButton } from "~/app/_components/quiz/quiz-sidebar-toggle";
 
 export default function Home() {
     return (

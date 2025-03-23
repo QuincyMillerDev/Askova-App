@@ -2,10 +2,10 @@
 "use client";
 
 import React from "react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import { Brain, LogOut, PlusCircle, LogIn } from "lucide-react";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { Separator } from "./ui/separator";
+import { Separator } from "../ui/separator";
 import { cn } from "~/lib/utils";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";

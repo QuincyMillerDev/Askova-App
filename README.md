@@ -36,9 +36,8 @@ Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/ver
 
 ### Backend
 - [x] Add Authentication with NextAuth
-- [ ] Add support for multiple quiz sessions at once
-- [ ] Remove storing quiz sessions for unauthenticated users.
-- [ ] LLM Streaming through API
+- [x] Add support for multiple quiz sessions at once
+- [ ] LLM Streaming on the backend
 
 ### Frontend
 - [x] Migrate existing UI from previous repository
@@ -47,14 +46,11 @@ Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/ver
 - [ ] Add settings/profile page
 - [ ] Add components for Auth
 
-
 ### Core functionality
 - [ ] Re-setup Gemini
 - [ ] Setup study session flow:
   - [ ] Upload file/pasting content
   - [ ] Content initiates a study session
-  - [ ] AI asks open ended questions and evaluates user answers
+  - [ ] AI asks open-ended questions and evaluates user answers
 
-
-## Extra Notes:
-- To add new shadcn components, add them to `components.json` and run `yarn generate:components`
+  

@@ -8,13 +8,13 @@ import {
     SheetContent,
     SheetClose,
     SheetDescription,
-} from "./ui/sheet";
-import { Button } from "./ui/button";
+} from "../ui/sheet";
+import { Button } from "../ui/button";
 import { Menu } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { DialogTitle } from "@radix-ui/react-dialog";
-import { FileUploadModal } from "~/app/_components/file-upload-modal";
-import { useSidebar } from "~/app/sidebar-context";
+import { FileUploadModal } from "~/app/_components/quiz/file-upload-modal";
+import { useSidebar } from "~/app/_components/contexts/sidebar-context";
 
 interface SidebarProps {
     isCollapsed?: boolean;

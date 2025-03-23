@@ -3,13 +3,13 @@
 import React from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { QuizInterface } from "../../_components/quiz-interface";
-import { QuizSidebar } from "../../_components/quiz-sidebar";
-import { QuizLayout } from "../../_components/quiz-layout";
-import { QuizSidebarToggleButton } from "~/app/_components/quiz-sidebar-toggle";
+import { QuizInterface } from "../../_components/quiz/quiz-interface";
+import { QuizSidebar } from "../../_components/quiz/quiz-sidebar";
+import { QuizLayout } from "../../_components/quiz/quiz-layout";
+import { QuizSidebarToggleButton } from "~/app/_components/quiz/quiz-sidebar-toggle";
 import { api } from "~/trpc/react";
 import { skipToken } from "@tanstack/query-core";
-import {SidebarProvider} from "~/app/sidebar-context";
+import {SidebarProvider} from "~/app/_components/contexts/sidebar-context";
 
 export default function QuizPage() {
     // Get raw quizId which may be string or string[]

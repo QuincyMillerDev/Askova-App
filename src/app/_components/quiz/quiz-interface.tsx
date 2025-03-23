@@ -9,14 +9,14 @@ import React, {
     type FormEvent,
 } from "react";
 import { useSession } from "next-auth/react";
-import { ScrollArea } from "./ui/scroll-area";
+import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "~/trpc/react";
 import { db } from "~/db/dexie";
 import type { ChatMessage, ChatRole } from "~/types/ChatMessage";
-import { QuizInput } from "~/app/_components/quiz-input";
+import { QuizInput } from "~/app/_components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
 
 interface QuizInterfaceProps {

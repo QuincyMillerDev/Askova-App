@@ -3,8 +3,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X, Sparkles, Upload, FileText } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Button } from "./ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Button } from "../ui/button";
 import { cn } from "~/lib/utils";
 import {Textarea} from "~/app/_components/ui/textarea";
 
