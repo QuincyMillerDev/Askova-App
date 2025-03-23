@@ -72,6 +72,28 @@ export const quizRouter = createTRPCRouter({
             };
         }),
 
+    getAllQuizzesByUser: protectedProcedure.query(async ({ ctx }): Promise<Quiz[] | null> => {
+        const quizzes = await ctx.db.quiz.findMany({
+            where: { userId: ctx.session.user.id },
+            include: { messages: true },
+        });
+
+        return quizzes.map((quiz) => ({
+            id: quiz.id,
+            title: quiz.title ?? undefined,
+            userId: quiz.userId ?? undefined,
+            createdAt: quiz.createdAt,
+            updatedAt: quiz.updatedAt,
+            messages: quiz.messages.map((m): ChatMessage => ({
+                id: m.id,
+                sessionId: m.sessionId,
+                role: m.role as "user" | "model",
+                content: m.content,
+                createdAt: m.createdAt,
+            })),
+        }));
+    }),
+
     addChatMessage: publicProcedure
         .input(
             z.object({

@@ -79,7 +79,10 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                 {session ? (
                     <Button
                         variant="outline"
-                        onClick={() => signOut()}
+                        onClick={async () => {
+                            await signOut({ redirect: false });
+                            router.refresh();
+                        }}
                         className="w-full justify-start h-12 relative z-10 border-primary/20"
                     >
                         <LogOut className="h-5 w-5 mr-3" />

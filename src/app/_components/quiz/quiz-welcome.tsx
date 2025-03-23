@@ -112,7 +112,7 @@ export function QuizWelcome() {
                                     style={{ animationDuration: "4s" }}
                                 />
                                 <div
-                                    className="absolute inset-4 bg-gradient-to-tr from-primary/30 to-transparent rounded-full animate-pulse"
+                                    className="absolute inset-4 bg-gradient-to-tr from-primary/60 to-transparent rounded-full animate-pulse"
                                     style={{ animationDuration: "7s" }}
                                 />
                                 <div className="absolute inset-0 flex items-center justify-center">

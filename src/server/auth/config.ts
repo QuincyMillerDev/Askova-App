@@ -18,11 +18,6 @@ declare module "next-auth" {
       // role: UserRole;
     } & DefaultSession["user"];
   }
-
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
 }
 
 /**
@@ -48,7 +43,6 @@ export const authConfig = {
   ],
   pages: {
     signIn: "/auth",
-    signOut: "/auth",
     error: "/auth/error",
   },
   adapter: PrismaAdapter(db),
@@ -60,5 +54,13 @@ export const authConfig = {
         id: user.id,
       },
     }),
+    // When a redirect occurs after a successful sign in,
+    // send the user to /auth/success, and pass along the original callback URL.
+    redirect: async ({ url, baseUrl }) => {
+      // You can add any custom logic here if needed.
+      return `${baseUrl}/auth/success?callbackUrl=${encodeURIComponent(
+          url
+      )}`;
+    },
   },
 } satisfies NextAuthConfig;
