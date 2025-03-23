@@ -4,8 +4,8 @@
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {useLocalDataSync} from "~/hooks/useLocalDataSync";
 import {useUserSync} from "~/hooks/useUserSync";
+import {db} from "~/db/dexie";
 
 export default function AuthSuccessPage() {
     const searchParams = useSearchParams();
@@ -14,9 +14,6 @@ export default function AuthSuccessPage() {
     const { status } = useSession();
     const isAuthenticated = status === "authenticated";
 
-    // Trigger local data sync on login
-    useLocalDataSync(isAuthenticated);
-
     // (Optional) Sync server user data back into the client.
     const { syncUserData } = useUserSync();
 
@@ -24,6 +21,7 @@ export default function AuthSuccessPage() {
         async function handleAuthSuccess() {
             if (!isAuthenticated) return;
             try {
+                await db.clearAllData();
                 await syncUserData();
                 router.push(callbackUrl);
             } catch (error) {

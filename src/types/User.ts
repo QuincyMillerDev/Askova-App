@@ -6,5 +6,5 @@ export interface User {
     name?: string;
     email?: string;
     image?: string;
-    quizzes: Quiz[];
+    quizzes?: Quiz[];
 }

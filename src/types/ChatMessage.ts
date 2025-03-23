@@ -8,5 +8,4 @@ export interface ChatMessage {
     role: ChatRole;
     content: string;
     createdAt: Date;
-    synced?: boolean;
 }

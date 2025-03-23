@@ -9,5 +9,4 @@ export interface Quiz {
     createdAt: Date;
     updatedAt: Date;
     messages: ChatMessage[]; // List of chat messages.
-    synced?: boolean;
 }

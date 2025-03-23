@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils"
 import { useRouter } from "next/navigation"
 import { useLiveQuery } from "dexie-react-hooks"
 import type { Quiz } from "~/types/Quiz"
-import {clearLocalData, db} from "~/db/dexie";
+import {db} from "~/db/dexie";
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
     const { data: session } = useSession()
@@ -75,9 +75,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     <Button
                         variant="outline"
                         onClick={async () => {
-                            await clearLocalData();
+                            await db.clearAllData();
                             await signOut({ redirect: false });
-                            router.refresh();
+                            router.push(`/quiz`);
                         }}
                         className="w-full justify-start h-12 relative z-10 border-primary/20"
                     >
