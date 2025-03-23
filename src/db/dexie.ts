@@ -21,4 +21,14 @@ export class AskovaClientDatabase extends Dexie {
     }
 }
 
+export async function clearDexieData() {
+    await db.transaction("rw", db.quizzes, db.chatMessages, db.user, async () => {
+        await Promise.all([
+            db.quizzes.clear(),
+            db.chatMessages.clear(),
+            db.user.clear(),
+        ]);
+    });
+}
+
 export const db = new AskovaClientDatabase();

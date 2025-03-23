@@ -5,7 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { cn } from "~/lib/utils"
 import { useRouter } from "next/navigation"
 import { useLiveQuery } from "dexie-react-hooks"
-import { db } from "~/db/dexie"
+import {clearDexieData, db} from "~/db/dexie"
 import type { Quiz } from "~/types/Quiz"
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
@@ -81,6 +81,7 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                         variant="outline"
                         onClick={async () => {
                             await signOut({ redirect: false });
+                            await clearDexieData();
                             router.refresh();
                         }}
                         className="w-full justify-start h-12 relative z-10 border-primary/20"
