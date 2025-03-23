@@ -64,7 +64,7 @@ export const quizRouter = createTRPCRouter({
                 updatedAt: quiz.updatedAt,
                 messages: quiz.messages.map((m) => ({
                     id: m.id,
-                    sessionId: m.sessionId,
+                    quizId: m.quizId,
                     role: m.role as "user" | "model",
                     content: m.content,
                     createdAt: m.createdAt,
@@ -86,7 +86,7 @@ export const quizRouter = createTRPCRouter({
             updatedAt: quiz.updatedAt,
             messages: quiz.messages.map((m): ChatMessage => ({
                 id: m.id,
-                sessionId: m.sessionId,
+                quizId: m.quizId,
                 role: m.role as "user" | "model",
                 content: m.content,
                 createdAt: m.createdAt,
@@ -105,7 +105,7 @@ export const quizRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }): Promise<ChatMessage> => {
             const newMessage = await ctx.db.chatMessage.create({
                 data: {
-                    sessionId: input.quizId,
+                    quizId: input.quizId,
                     role: input.role,
                     content: input.content,
                     createdAt: new Date(),
@@ -113,7 +113,7 @@ export const quizRouter = createTRPCRouter({
             });
             return {
                 id: newMessage.id,
-                sessionId: newMessage.sessionId,
+                quizId: newMessage.quizId,
                 role: newMessage.role as "user" | "model",
                 content: newMessage.content,
                 createdAt: newMessage.createdAt,

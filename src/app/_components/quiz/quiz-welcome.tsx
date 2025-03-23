@@ -6,9 +6,7 @@ import type { ChangeEvent } from "react"
 import { QuizInput } from "./quiz-input"
 import { v4 as uuidv4 } from "uuid"
 import { useRouter } from "next/navigation"
-import { db } from "~/db/dexie"
 import { useSession } from "next-auth/react"
-import { api } from "~/trpc/react"
 import type { Quiz } from "~/types/Quiz"
 import type { ChatMessage } from "~/types/ChatMessage"
 import { Brain, Sparkles, BookOpen } from "lucide-react"
@@ -18,9 +16,6 @@ export function QuizWelcome() {
     const [inputValue, setInputValue] = useState("")
     const router = useRouter()
     const { data: session } = useSession()
-
-    // tRPC mutation to create a new quiz session on the server.
-    const createQuizMutation = api.quiz.create.useMutation()
 
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         setInputValue(event.target.value)
@@ -36,8 +31,8 @@ export function QuizWelcome() {
 
         // 2. Build an initial chat message.
         const initialMessage: ChatMessage = {
-            id: Date.now(), // Use a temporary id for local display (Dexie auto-generates real IDs if needed)
-            sessionId: quizId,
+            id: 0, // id is incremented
+            quizId: quizId,
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
@@ -47,31 +42,35 @@ export function QuizWelcome() {
         const newQuiz: Quiz = {
             id: quizId,
             title: trimmedInput,
-            messages: [], // Initially empty (we're storing messages separately)
+            messages: [initialMessage],
             userId: session?.user?.id ?? undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
         }
 
-        try {
-            // Save the new quiz session to Dexie.
-            await db.quizzes.put(newQuiz)
-            // Also store the initial chat message to Dexie.
-            await db.chatMessages.add(initialMessage)
-        } catch (error) {
-            console.error("Failed to create quiz session locally:", error)
-            return
-        }
+        console.log("newQuiz", newQuiz)
 
-        // 4. If the user is authenticated, also persist the quiz session on the server.
-        if (session?.user) {
-            try {
-                await createQuizMutation.mutateAsync({ id: quizId, title: trimmedInput })
-            } catch (error) {
-                console.error("Error persisting quiz session on server:", error)
-                // Optionally, you could display a nonblocking error message to the user.
-            }
-        }
+        // TODO: Move the writing logic to the sync service.
+
+        // try {
+        //     // Save the new quiz session to Dexie.
+        //     await db.quizzes.put(newQuiz)
+        //     // Also store the initial chat message to Dexie.
+        //     await db.chatMessages.add(initialMessage)
+        // } catch (error) {
+        //     console.error("Failed to create quiz session locally:", error)
+        //     return
+        // }
+
+        // // 4. If the user is authenticated, also persist the quiz session on the server.
+        // if (session?.user) {
+        //     try {
+        //         await createQuizMutation.mutateAsync({ id: quizId, title: trimmedInput })
+        //     } catch (error) {
+        //         console.error("Error persisting quiz session on server:", error)
+        //         // Optionally, you could display a nonblocking error message to the user.
+        //     }
+        // }
 
         // 5. Navigate to the quiz page.
         router.push(`/quiz/${quizId}`)

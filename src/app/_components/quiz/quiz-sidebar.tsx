@@ -5,8 +5,8 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { cn } from "~/lib/utils"
 import { useRouter } from "next/navigation"
 import { useLiveQuery } from "dexie-react-hooks"
-import {clearDexieData, db} from "~/db/dexie"
 import type { Quiz } from "~/types/Quiz"
+import {db} from "~/db/dexie";
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
     const { data: session } = useSession()
@@ -17,11 +17,6 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
         () => db.quizzes.orderBy("createdAt").reverse().toArray(),
         []
     )
-
-    const handleNewQuiz = async () => {
-        // Redirect to the new quiz creation page (handled by QuizWelcome)
-        router.push(`/quiz`)
-    }
 
     return (
         <div
@@ -45,7 +40,7 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                 <div className="px-4 pb-4">
                     <Button
                         variant="outline"
-                        onClick={handleNewQuiz}
+                        onClick={() => router.push(`/quiz`)}
                         className="w-full justify-start hover:bg-primary/10 hover:text-primary border-primary/20"
                     >
                         <PlusCircle className="h-4 w-4 mr-2" />
@@ -81,7 +76,6 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                         variant="outline"
                         onClick={async () => {
                             await signOut({ redirect: false });
-                            await clearDexieData();
                             router.refresh();
                         }}
                         className="w-full justify-start h-12 relative z-10 border-primary/20"
