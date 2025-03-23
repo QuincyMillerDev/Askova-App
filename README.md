@@ -4,7 +4,7 @@
 ### Backend
 - [x] Add Authentication with NextAuth
 - [x] Add support for multiple quiz sessions at once
-- [ ] Add Google as OAuth Provider, remove Discord
+- [x] Add Google as OAuth Provider, remove Discord
 - [ ] LLM implementation
 - [ ] Improve data syncing between Dexie and Prisma
 - [ ] Deleting quizzes

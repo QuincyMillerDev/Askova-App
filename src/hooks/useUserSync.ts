@@ -8,7 +8,7 @@ export function useUserSync() {
     const isAuthenticated = status === "authenticated";
 
     // Note: the query is only enabled when authenticated.
-    const getUserDataQuery = api.user.getUserData.useQuery(undefined, {
+    const getUserQuery = api.user.getUser.useQuery(undefined, {
         enabled: isAuthenticated
     });
 
@@ -20,7 +20,7 @@ export function useUserSync() {
             }
 
             // Refetch server user data.
-            const userData = await getUserDataQuery.refetch();
+            const userData = await getUserQuery.refetch();
 
             if (userData.data) {
                 // Insert the user data locally in Dexie.

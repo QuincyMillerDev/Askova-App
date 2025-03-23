@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 export function useChatMessageSync() {
     const { status } = useSession();
     const isAuthenticated = status === "authenticated";
-    const addChatMessageMutation = api.quiz.addChatMessage.useMutation();
+    const addChatMessageMutation = api.chatMessage.add.useMutation();
 
     const addChatMessageSync = async (message: ChatMessage): Promise<void> => {
         try {

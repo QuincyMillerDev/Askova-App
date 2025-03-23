@@ -1,6 +1,7 @@
 import { quizRouter } from "~/server/api/routers/quiz";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 import { userRouter } from "~/server/api/routers/user";
+import {chatMessageRouter} from "~/server/api/routers/chatMessage";
 
 /**
  * This is the primary router for your server.
@@ -10,6 +11,7 @@ import { userRouter } from "~/server/api/routers/user";
 export const appRouter = createTRPCRouter({
   quiz: quizRouter,
   user: userRouter,
+  chatMessage: chatMessageRouter
 });
 
 // export type definition of API

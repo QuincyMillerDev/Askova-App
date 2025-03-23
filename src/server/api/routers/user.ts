@@ -21,16 +21,16 @@ const quizSchema = z.object({
     messages: z.array(chatMessageSchema),
 });
 
-const userDataSchema = z.object({
+const userSchema = z.object({
     id: z.string(),
     name: z.string(),
     quizzes: z.array(quizSchema),
 });
 
 export const userRouter = createTRPCRouter({
-    getUserData: protectedProcedure
-        .output(userDataSchema)
-        .query(async ({ ctx }): Promise<z.infer<typeof userDataSchema>> => {
+    getUser: protectedProcedure
+        .output(userSchema)
+        .query(async ({ ctx }): Promise<z.infer<typeof userSchema>> => {
             // Get the user's quizzes with their messages
             const quizzes = await ctx.db.quiz.findMany({
                 where: { userId: ctx.session.user.id },
@@ -40,7 +40,7 @@ export const userRouter = createTRPCRouter({
             // Transform the data to match our shared types
             return {
                 id: ctx.session.user.id,
-                name: ctx.session.user.name ?? "Anonymous",
+                name: ctx.session.user.name ?? "",
                 quizzes: quizzes.map((quiz): Quiz => ({
                     id: quiz.id,
                     title: quiz.title ?? undefined,

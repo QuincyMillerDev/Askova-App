@@ -5,12 +5,10 @@ import {
     publicProcedure,
     protectedProcedure,
 } from "~/server/api/trpc";
-import { type Quiz } from "~/types/Quiz";
-import { type ChatMessage } from "~/types/ChatMessage";
+import type { Quiz } from "~/types/Quiz";
 
 export const quizRouter = createTRPCRouter({
-    // Use an "upsert" so that if a quiz with the same ID exists,
-    // we update it (specifically, we set the userId) rather than creating a duplicate.
+    // Create or update a quiz (upsert)
     create: protectedProcedure
         .input(
             z.object({
@@ -43,10 +41,11 @@ export const quizRouter = createTRPCRouter({
                 userId: persistedQuiz.userId ?? undefined,
                 createdAt: persistedQuiz.createdAt,
                 updatedAt: persistedQuiz.updatedAt,
-                messages: [], // (Messages can be added/fetched separately.)
+                messages: [], // Chat message handling is now in its own router.
             };
         }),
 
+    // Read – Get a quiz by its ID (including any associated chat messages)
     getById: publicProcedure
         .input(z.object({ quizId: z.string() }))
         .query(async ({ ctx, input }): Promise<Quiz | null> => {
@@ -69,54 +68,6 @@ export const quizRouter = createTRPCRouter({
                     content: m.content,
                     createdAt: m.createdAt,
                 })),
-            };
-        }),
-
-    getAllQuizzesByUser: protectedProcedure.query(async ({ ctx }): Promise<Quiz[] | null> => {
-        const quizzes = await ctx.db.quiz.findMany({
-            where: { userId: ctx.session.user.id },
-            include: { messages: true },
-        });
-
-        return quizzes.map((quiz) => ({
-            id: quiz.id,
-            title: quiz.title ?? undefined,
-            userId: quiz.userId ?? undefined,
-            createdAt: quiz.createdAt,
-            updatedAt: quiz.updatedAt,
-            messages: quiz.messages.map((m): ChatMessage => ({
-                id: m.id,
-                quizId: m.quizId,
-                role: m.role as "user" | "model",
-                content: m.content,
-                createdAt: m.createdAt,
-            })),
-        }));
-    }),
-
-    addChatMessage: publicProcedure
-        .input(
-            z.object({
-                quizId: z.string(),
-                role: z.enum(["user", "model"]),
-                content: z.string(),
-            })
-        )
-        .mutation(async ({ ctx, input }): Promise<ChatMessage> => {
-            const newMessage = await ctx.db.chatMessage.create({
-                data: {
-                    quizId: input.quizId,
-                    role: input.role,
-                    content: input.content,
-                    createdAt: new Date(),
-                },
-            });
-            return {
-                id: newMessage.id,
-                quizId: newMessage.quizId,
-                role: newMessage.role as "user" | "model",
-                content: newMessage.content,
-                createdAt: newMessage.createdAt,
             };
         }),
 });
