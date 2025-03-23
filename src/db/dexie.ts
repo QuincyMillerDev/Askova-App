@@ -21,4 +21,13 @@ export class AskovaClientDatabase extends Dexie {
     }
 }
 
+export async function clearLocalData(): Promise<void> {
+    // Clear all tables in the database.
+    await Promise.all([
+      db.quizzes.clear(),
+      db.chatMessages.clear(),
+      db.user.clear()
+    ]);
+  }
+
 export const db = new AskovaClientDatabase();
