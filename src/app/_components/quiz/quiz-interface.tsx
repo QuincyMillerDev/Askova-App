@@ -16,7 +16,7 @@ import { db } from "~/db/dexie";
 import type { ChatMessage } from "~/types/ChatMessage";
 import { QuizInput } from "~/app/_components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSync } from "~/hooks/useSync";
+import { useChatMessageSync } from "~/hooks/useChatMessageSync"
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -27,7 +27,7 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [isTyping, setIsTyping] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { addChatMessageSync } = useSync();
+    const { addChatMessageSync } = useChatMessageSync();
 
     // Use Dexie Live Query to always read all messages for this session.
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(

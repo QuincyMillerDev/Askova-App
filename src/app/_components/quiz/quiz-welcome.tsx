@@ -11,13 +11,16 @@ import type { Quiz } from "~/types/Quiz"
 import type { ChatMessage } from "~/types/ChatMessage"
 import { Brain, Sparkles, BookOpen } from "lucide-react"
 import { ScrollArea } from "~/app/_components/ui/scroll-area"
-import { useSync } from "~/hooks/useSync"
+import { useQuizSync } from "~/hooks/useQuizSync";
+import { useChatMessageSync } from "~/hooks/useChatMessageSync";
+
 
 export function QuizWelcome() {
     const [inputValue, setInputValue] = useState("")
     const router = useRouter()
     const { data: session } = useSession()
-    const { createQuizSync, addChatMessageSync } = useSync()
+    const { createQuizSync } = useQuizSync();
+    const { addChatMessageSync } = useChatMessageSync();
 
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         setInputValue(event.target.value)

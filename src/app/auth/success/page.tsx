@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSync } from "~/hooks/useSync";
+import { useUserSync} from "~/hooks/useUserSync";
 import { useSession } from "next-auth/react";
 
 export default function AuthSuccessPage() {
@@ -11,7 +11,7 @@ export default function AuthSuccessPage() {
     const searchParams = useSearchParams();
     const callbackUrl = searchParams.get("callbackUrl") ?? "/quiz";
     const router = useRouter();
-    const { syncUserData } = useSync();
+    const { syncUserData } = useUserSync();
     const { status } = useSession();
 
     useEffect(() => {
