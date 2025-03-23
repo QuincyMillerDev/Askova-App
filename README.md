@@ -1,57 +1,35 @@
-# Create T3 App
-
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
-
-## What's next? How do I make an app with this?
-
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
-
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
-
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
-
-## Learn More
-
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
-
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
 
 # TODOS
-
-### Misc
-- [x] Make it deploy
-- [x] Finish T3 Tutorial Video
 
 ### Backend
 - [x] Add Authentication with NextAuth
 - [x] Add support for multiple quiz sessions at once
-- [ ] LLM Streaming on the backend
+- [ ] Add Google as OAuth Provider, remove Discord
+- [ ] LLM implementation
+- [ ] Improve data syncing between Dexie and Prisma
 
 ### Frontend
 - [x] Migrate existing UI from previous repository
 - [ ] Add messages components that support markdown
 - [ ] LLM response streaming on frontend
 - [ ] Add settings/profile page
-- [ ] Add components for Auth
+- [x] Add components for Auth
 - [ ] Highlight the selected quiz session
+- [ ] Warn users there quizzes will only be saved if they login
 
 ### Core functionality
-- [ ] Re-setup Gemini
+- [ ] Limit users to 10 messages if they don't log in
 - [ ] Setup study session flow:
   - [ ] Upload file/pasting content
   - [ ] Content initiates a study session
   - [ ] AI asks open-ended questions and evaluates user answers
+- [ ] Add payment
 
-  
+  ## Relevant Docs
+- [Next.js](https://nextjs.org)
+- [NextAuth.js](https://next-auth.js.org)
+- [Prisma](https://prisma.io)
+- [Dexie.js](https://dexie.org/docs/)
+- [Tailwind CSS](https://tailwindcss.com)
+- [tRPC](https://trpc.io)
+- [T3 Stack](https://create.t3.gg/)
