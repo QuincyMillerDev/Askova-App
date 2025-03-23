@@ -3,8 +3,8 @@
 
 import { useState } from "react"
 import { signIn } from "next-auth/react"
-import { Button } from "../_components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../_components/ui/card"
+import { Button } from "../components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
 import { useRouter } from "next/navigation"
 import { DiscIcon as DiscordLogoIcon } from "lucide-react"
 

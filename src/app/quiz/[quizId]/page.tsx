@@ -3,7 +3,7 @@
 
 import React from "react";
 import { useParams } from "next/navigation";
-import { QuizInterface } from "../../_components/quiz/quiz-interface";
+import { QuizInterface } from "../../components/quiz/quiz-interface";
 import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import { skipToken } from "@tanstack/query-core";
