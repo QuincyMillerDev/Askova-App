@@ -10,12 +10,14 @@ import { useSession } from "next-auth/react"
 import type { Quiz } from "~/types/Quiz"
 import type { ChatMessage } from "~/types/ChatMessage"
 import { Brain, Sparkles, BookOpen } from "lucide-react"
-import {ScrollArea} from "~/app/_components/ui/scroll-area";
+import { ScrollArea } from "~/app/_components/ui/scroll-area"
+import { useSync } from "~/hooks/useSync"
 
 export function QuizWelcome() {
     const [inputValue, setInputValue] = useState("")
     const router = useRouter()
     const { data: session } = useSession()
+    const { createQuizSync, addChatMessageSync } = useSync()
 
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         setInputValue(event.target.value)
@@ -31,7 +33,7 @@ export function QuizWelcome() {
 
         // 2. Build an initial chat message.
         const initialMessage: ChatMessage = {
-            id: 0, // id is incremented
+            id: Date.now(), // Use timestamp as ID to ensure uniqueness
             quizId: quizId,
             role: "user",
             content: trimmedInput,
@@ -42,38 +44,25 @@ export function QuizWelcome() {
         const newQuiz: Quiz = {
             id: quizId,
             title: trimmedInput,
-            messages: [initialMessage],
+            messages: [], // We'll add messages separately
             userId: session?.user?.id ?? undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
         }
 
-        console.log("newQuiz", newQuiz)
-
-        // TODO: Move the writing logic to the sync service.
-
-        // try {
-        //     // Save the new quiz session to Dexie.
-        //     await db.quizzes.put(newQuiz)
-        //     // Also store the initial chat message to Dexie.
-        //     await db.chatMessages.add(initialMessage)
-        // } catch (error) {
-        //     console.error("Failed to create quiz session locally:", error)
-        //     return
-        // }
-
-        // // 4. If the user is authenticated, also persist the quiz session on the server.
-        // if (session?.user) {
-        //     try {
-        //         await createQuizMutation.mutateAsync({ id: quizId, title: trimmedInput })
-        //     } catch (error) {
-        //         console.error("Error persisting quiz session on server:", error)
-        //         // Optionally, you could display a nonblocking error message to the user.
-        //     }
-        // }
-
-        // 5. Navigate to the quiz page.
-        router.push(`/quiz/${quizId}`)
+        try {
+            // First create the quiz
+            await createQuizSync(newQuiz);
+            
+            // Then save the initial message
+            await addChatMessageSync(initialMessage);
+            
+            // Finally navigate to the quiz page
+            router.push(`/quiz/${quizId}`);
+        } catch (error) {
+            console.error("Failed to create quiz:", error);
+            // Handle error appropriately
+        }
     }
 
     const features = [

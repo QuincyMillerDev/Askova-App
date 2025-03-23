@@ -16,6 +16,7 @@ import { db } from "~/db/dexie";
 import type { ChatMessage } from "~/types/ChatMessage";
 import { QuizInput } from "~/app/_components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
+import { useSync } from "~/hooks/useSync";
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -26,6 +27,7 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [isTyping, setIsTyping] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const { addChatMessageSync } = useSync();
 
     // Use Dexie Live Query to always read all messages for this session.
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
@@ -67,46 +69,28 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
             createdAt: new Date(),
         };
 
-        console.log("userMessage", userMessage)
-        // TODO: Move the writing logic to the sync service.
+        try {
+            await addChatMessageSync(userMessage);
+            setInput("");
 
-        // try {
-        //     await db.chatMessages.add(userMessage);
-        // } catch (error) {
-        //     console.error("Error saving message to Dexie:", error);
-        // }
-
-        // // If authenticated, send the message via tRPC.
-        // if (isAuthenticated) {
-        //     try {
-        //         addChatMessageMutation.mutate({
-        //             quizId,
-        //             role: "user" as ChatRole,
-        //             content: trimmed,
-        //         });
-        //     } catch (error) {
-        //         console.error("Error persisting message via tRPC:", error);
-        //     }
-        // } else {
-        //     console.warn("Unauthenticated; message stored locally only.");
-        // }
-
-        setInput("");
-
-        // Trigger echo simulation for the new message.
-        if (!isTyping) {
-            setIsTyping(true);
-            setTimeout(() => {
-                const modelMessage: ChatMessage = {
-                    id: Date.now() + 1,
-                    quizId: quizId,
-                    role: "model",
-                    content: `Echo: ${trimmed}`,
-                    createdAt: new Date(),
-                };
-                void db.chatMessages.add(modelMessage);
-                setIsTyping(false);
-            }, 1000);
+            // Trigger echo simulation for the new message.
+            if (!isTyping) {
+                setIsTyping(true);
+                setTimeout(() => {
+                    const modelMessage: ChatMessage = {
+                        id: Date.now() + 1,
+                        quizId: quizId,
+                        role: "model",
+                        content: `Echo: ${trimmed}`,
+                        createdAt: new Date(),
+                    };
+                    void addChatMessageSync(modelMessage);
+                    setIsTyping(false);
+                }, 1000);
+            }
+        } catch (error) {
+            console.error("Error handling message:", error);
+            // Handle error appropriately
         }
     };
 

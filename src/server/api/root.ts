@@ -1,6 +1,6 @@
 import { quizRouter } from "~/server/api/routers/quiz";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
-import {userRouter} from "~/server/api/routers/user";
+import { userRouter } from "~/server/api/routers/user";
 
 /**
  * This is the primary router for your server.
