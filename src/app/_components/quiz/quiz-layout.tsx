@@ -1,4 +1,4 @@
-// src/app/_components/quiz-layout.tsx
+// src/app/_components/quiz/quiz-layout.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -16,18 +16,9 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { FileUploadModal } from "~/app/_components/quiz/file-upload-modal";
 import { useSidebar } from "~/app/_components/contexts/sidebar-context";
 
-interface SidebarProps {
-    isCollapsed?: boolean;
-}
-
-interface ContentProps {
-    isCollapsed?: boolean;
-    toggleSidebar?: () => void;
-}
-
 interface QuizLayoutProps {
-    sidebar: React.ReactElement<SidebarProps>;
-    content: React.ReactElement<ContentProps>;
+    sidebar: React.ReactElement;
+    content: React.ReactNode;
 }
 
 export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
@@ -82,7 +73,16 @@ export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col relative">
-                {React.cloneElement(content, { isCollapsed, toggleSidebar })}
+                {React.isValidElement(content)
+                    ? React.cloneElement(
+                        // Assert the content accepts the extra properties.
+                        content as React.ReactElement<{
+                            isCollapsed?: boolean;
+                            toggleSidebar?: () => void;
+                        }>,
+                        { isCollapsed, toggleSidebar }
+                    )
+                    : content}
                 <FileUploadModal
                     open={isFileUploadModalOpen}
                     onClose={handleCloseFileUploadModal}

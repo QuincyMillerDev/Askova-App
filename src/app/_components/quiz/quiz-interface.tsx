@@ -1,4 +1,4 @@
-// app/_components/quiz-interface.tsx
+// src/app/_components/quiz-interface.tsx
 "use client";
 
 import React, {
@@ -23,13 +23,11 @@ interface QuizInterfaceProps {
     quizId: string;
 }
 
-export function QuizInterface({
-                                  quizId,
-                              }: QuizInterfaceProps) {
+export function QuizInterface({ quizId }: QuizInterfaceProps) {
     // Use Dexie Live Query to always read all messages for this session.
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () => db.chatMessages.where("sessionId").equals(quizId).toArray(),
-        [quizId],
+        [quizId]
     );
 
     // Wrap initialization of localMessages in its own useMemo().
@@ -44,6 +42,18 @@ export function QuizInterface({
     const isAuthenticated = Boolean(session?.user?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // State to control the opacity animation
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    // Trigger a fade-in transition when quizId changes.
+    useEffect(() => {
+        setIsLoaded(false);
+        const timer = setTimeout(() => {
+            setIsLoaded(true);
+        }, 50); // small delay to trigger the transition
+        return () => clearTimeout(timer);
+    }, [quizId]);
+
     // tRPC mutation to send a new chat message.
     const addChatMessageMutation = api.quiz.addChatMessage.useMutation();
 
@@ -55,7 +65,6 @@ export function QuizInterface({
     // Effect to simulate an echo for the last user message if not already echoed.
     useEffect(() => {
         if (localMessages.length > 0) {
-            // Assert non-null because there is at least one message.
             const lastMessage = localMessages[localMessages.length - 1]!;
             if (lastMessage.role === "user") {
                 const echoExists = localMessages.some(
@@ -73,7 +82,6 @@ export function QuizInterface({
                             content: `Echo: ${lastMessage.content}`,
                             createdAt: new Date(),
                         };
-                        // Persist the echo message into Dexie.
                         void db.chatMessages.add(modelMessage);
                     }, 1000);
                     return () => clearTimeout(timeoutId);
@@ -140,17 +148,13 @@ export function QuizInterface({
         <div className="flex h-full w-full">
             <div className="flex-1 relative w-full">
                 <ScrollArea className="w-full h-full">
-                    <div className="mx-auto max-w-4xl space-y-4 p-4 pb-36">
-                        {localMessages.length === 0 && (
-                            <div className="text-center p-8 text-muted-foreground">
-                                {isAuthenticated && session?.user?.name ? (
-                                    <span>Hello {session.user.name},</span>
-                                ) : (
-                                    <span>Hello,</span>
-                                )}
-                                &nbsp;start the quiz by typing a question below.
-                            </div>
+                    {/* The content container transitions opacity over 300ms */}
+                    <div
+                        className={cn(
+                            "mx-auto max-w-4xl space-y-4 p-4 pb-36 transition-opacity duration-150",
+                            isLoaded ? "opacity-100" : "opacity-0"
                         )}
+                    >
                         {localMessages.map((message) => (
                             <div
                                 key={message.id}

@@ -12,8 +12,11 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
     const { data: session } = useSession()
     const router = useRouter()
 
-    // Use live query to read all quizzes stored in Dexie
-    const quizzes: Quiz[] | undefined = useLiveQuery(() => db.quizzes.toArray(), [])
+    // Use live query to read all quizzes stored in Dexie sorted by most recent.
+    const quizzes: Quiz[] | undefined = useLiveQuery(
+        () => db.quizzes.orderBy("createdAt").reverse().toArray(),
+        []
+    )
 
     const handleNewQuiz = async () => {
         // Redirect to the new quiz creation page (handled by QuizWelcome)
@@ -22,12 +25,18 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
 
     return (
         <div
-            className={cn("transition-all duration-100 flex flex-col h-full overflow-hidden", isCollapsed ? "w-0" : "w-64")}
+            className={cn(
+                "transition-all duration-100 flex flex-col h-full overflow-hidden",
+                isCollapsed ? "w-0" : "w-64"
+            )}
         >
             {/* Sidebar Header */}
-            <div className="border-b">
+            <div>
                 {/* App Title */}
-                <div onClick={() => router.push("/quiz")} className="flex items-center justify-center p-4 cursor-pointer">
+                <div
+                    onClick={() => router.push("/quiz")}
+                    className="flex items-center justify-center p-4 cursor-pointer"
+                >
                     <Brain className="h-6 w-6 text-primary mr-2" />
                     <h1 className="text-xl font-bold">Askova</h1>
                 </div>
@@ -59,14 +68,14 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                         </Button>
                     ))
                 ) : (
-                    <div className="text-center text-muted-foreground mt-4">No quizzes yet.</div>
+                    <div className="text-center text-muted-foreground mt-4">
+                        No quizzes yet.
+                    </div>
                 )}
             </div>
 
-            {/* Enhanced Authentication Section - No separator */}
+            {/* Authentication Section */}
             <div className="p-6 relative">
-                {/* Background gradient similar to welcome component */}
-
                 {session ? (
                     <Button
                         variant="outline"
@@ -78,7 +87,6 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     </Button>
                 ) : (
                     <div className="space-y-3">
-
                         <Button
                             variant="outline"
                             onClick={() => signIn()}
@@ -93,4 +101,3 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
         </div>
     )
 }
-

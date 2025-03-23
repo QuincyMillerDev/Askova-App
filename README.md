@@ -45,6 +45,7 @@ Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/ver
 - [ ] LLM response streaming on frontend
 - [ ] Add settings/profile page
 - [ ] Add components for Auth
+- [ ] Highlight the selected quiz session
 
 ### Core functionality
 - [ ] Re-setup Gemini
