@@ -1,43 +1,52 @@
 // src/app/auth/page.tsx
-"use client"
+"use client";
 
-import { useState } from "react"
-import { signIn } from "next-auth/react"
-import { Button } from "../components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
-import { useRouter } from "next/navigation"
-import { DiscIcon as DiscordLogoIcon } from "lucide-react"
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { Button } from "../components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "../components/ui/card";
+import { useRouter } from "next/navigation";
+import { FcGoogle } from "react-icons/fc";
 
 export default function AuthPage() {
-    const [isLoading, setIsLoading] = useState(false)
-    const router = useRouter()
+    const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
 
-    const handleDiscordLogin = async () => {
+    const handleGoogleLogin = async () => {
         try {
-            setIsLoading(true)
-            await signIn("discord", { callbackUrl: "/" })
+            setIsLoading(true);
+            await signIn("google", { callbackUrl: "/" });
         } catch (error) {
-            console.error("Login failed:", error)
+            console.error("Login failed:", error);
         } finally {
-            setIsLoading(false)
+            setIsLoading(false);
         }
-    }
+    };
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
             <Card className="w-full max-w-md shadow-lg">
                 <CardHeader className="space-y-1 text-center">
                     <CardTitle className="text-2xl font-bold">Welcome to Askova</CardTitle>
-                    <CardDescription>Sign in to your account to continue</CardDescription>
+                    <CardDescription>
+                        Sign in to your account to continue
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <Button
-                        className="w-full h-12 text-white font-medium text-base transition-all hover:scale-[1.02] hover:shadow-md bg-[#5865F2] hover:bg-[#4752c4] flex items-center justify-center gap-3"
-                        onClick={handleDiscordLogin}
+                        className="w-full h-12 text-black font-medium text-base transition-all hover:scale-[1.02] hover:shadow-md bg-white flex items-center justify-center gap-3 border border-gray-300"
+                        onClick={handleGoogleLogin}
                         disabled={isLoading}
                     >
-                        <DiscordLogoIcon className="h-6 w-6" />
-                        <span>Continue with Discord</span>
+                        <FcGoogle className="h-6 w-6" />
+                        <span>Continue with Google</span>
                     </Button>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-4">
@@ -61,6 +70,5 @@ export default function AuthPage() {
                 </CardFooter>
             </Card>
         </div>
-    )
+    );
 }
-

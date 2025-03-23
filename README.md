@@ -7,8 +7,11 @@
 - [ ] Add Google as OAuth Provider, remove Discord
 - [ ] LLM implementation
 - [ ] Improve data syncing between Dexie and Prisma
+- [ ] Deleting quizzes
+- [ ] Storing Files
 
 ### Frontend
+- [ ] Support message modifcations
 - [x] Migrate existing UI from previous repository
 - [ ] Add messages components that support markdown
 - [ ] LLM response streaming on frontend
