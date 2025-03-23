@@ -80,9 +80,9 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     <div className="space-y-3">
 
                         <Button
-                            variant="default"
+                            variant="outline"
                             onClick={() => signIn()}
-                            className="w-full justify-start h-12 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all duration-200 relative z-10"
+                            className="w-full h-12 justify-start hover:bg-primary/10 hover:text-primary border-primary/20"
                         >
                             <LogIn className="h-5 w-5 mr-3" />
                             <span className="font-medium">Login</span>
