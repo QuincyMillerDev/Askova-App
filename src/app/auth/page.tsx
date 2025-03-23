@@ -26,7 +26,7 @@ export default function AuthPage() {
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
             <Card className="w-full max-w-md shadow-lg">
                 <CardHeader className="space-y-1 text-center">
-                    <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+                    <CardTitle className="text-2xl font-bold">Welcome to Askova</CardTitle>
                     <CardDescription>Sign in to your account to continue</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

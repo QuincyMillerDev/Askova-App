@@ -94,7 +94,7 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                         className="w-full justify-start"
                     >
                         <LogIn className="h-4 w-4 mr-2" />
-                        <span>Login / Sign Up</span>
+                        <span>Login</span>
                     </Button>
                 )}
             </div>
