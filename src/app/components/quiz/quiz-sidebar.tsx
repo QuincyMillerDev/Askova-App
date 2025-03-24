@@ -80,14 +80,14 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                     >
                         <Avatar className="h-6 w-6 mr-3">
                             {session.user.image ? (
-                                <AvatarImage src={session.user.image} alt={session.user.name || ""} />
+                                <AvatarImage src={session.user.image} alt={session.user.name ?? ""} />
                             ) : (
                                 <AvatarFallback className="bg-primary/20 text-primary">
-                                    {session.user.name?.[0] || "U"}
+                                    {session.user.name?.[0] ?? "U"}
                                 </AvatarFallback>
                             )}
                         </Avatar>
-                        <span className="font-medium truncate">{session.user.name || "Account"}</span>
+                        <span className="font-medium truncate">{session.user.name ?? "Account"}</span>
                     </Button>
                 ) : (
                     <div className="space-y-3">

@@ -10,14 +10,16 @@
 - [ ] Storing Files
 
 ### Frontend
-- [ ] Support message modifcations
+- [ ] Support message editing
 - [x] Migrate existing UI from previous repository
 - [ ] Add messages components that support markdown
 - [ ] LLM response streaming on frontend
-- [ ] Add settings/profile page
+- [x] Add settings/profile page
+- [ ] Add other settings/ pages
 - [x] Add components for Auth
 - [ ] Highlight the selected quiz session
 - [ ] Warn users their quizzes will only be saved if they login
+- [ ] Implement Terms of Service and Privacy Policy pages
 
 ### Core functionality
 - [ ] Setup study session flow:
@@ -25,11 +27,13 @@
   - [ ] Content initiates a study session
   - [ ] AI asks open-ended questions and evaluates user answers
 
-
 ### Payment stuff
 - [ ] Limit unauthenticated users to 10 messages.
 - [ ] Figure out payment tier.
 - [ ] Integrate payment, Stripe?
+
+### BUGS
+- [ ] Google Avatar not working?
 
   ## Relevant Docs
 - [Next.js](https://nextjs.org)

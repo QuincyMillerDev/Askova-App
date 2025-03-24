@@ -57,4 +57,36 @@ export const userRouter = createTRPCRouter({
                 })),
             };
         }),
-}); 
+
+    deleteUser: protectedProcedure.mutation(async ({ ctx }) => {
+        await ctx.db.$transaction(async (tx) => {
+            const userId = ctx.session.user.id;
+
+            // 1. Retrieve IDs of all quizzes created by this user.
+            const userQuizzes = await tx.quiz.findMany({
+                where: { userId },
+                select: { id: true },
+            });
+
+            // 2. Delete all chat messages for these quizzes.
+            if (userQuizzes.length > 0) {
+                await tx.chatMessage.deleteMany({
+                    where: {
+                        quizId: { in: userQuizzes.map((quiz) => quiz.id) },
+                    },
+                });
+            }
+
+            // 3. Delete all quizzes for this user.
+            await tx.quiz.deleteMany({
+                where: { userId },
+            });
+
+            // 4. Finally, delete the user record.
+            await tx.user.delete({
+                where: { id: userId },
+            });
+        });
+        return { success: true };
+    }),
+});

@@ -97,7 +97,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                             <div className="mb-8 flex items-center space-x-4">
                                 <Avatar className="h-20 w-20">
                                     {session?.user?.image ? (
-                                        <AvatarImage src={session.user.image} alt={session.user.name || ""} />
+                                        <AvatarImage src={session.user.image} alt={session.user.name ?? ""} />
                                     ) : (
                                         <AvatarFallback className="text-3xl bg-primary/20 text-primary">
                                             {session?.user?.name?.[0] ?? "A"}
