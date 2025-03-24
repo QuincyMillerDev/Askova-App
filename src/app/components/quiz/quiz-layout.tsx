@@ -13,7 +13,6 @@ import { Button } from "../ui/button";
 import { Menu } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { DialogTitle } from "@radix-ui/react-dialog";
-import { FileUploadModal } from "~/app/components/quiz/file-upload-modal";
 import { useSidebar } from "~/app/components/contexts/sidebar-context";
 
 interface QuizLayoutProps {
@@ -24,11 +23,6 @@ interface QuizLayoutProps {
 export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
     const { isCollapsed, toggleSidebar } = useSidebar();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-    const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
-
-    const handleCloseFileUploadModal = () => {
-        setIsFileUploadModalOpen(false);
-    };
 
     return (
         <div className="flex h-screen w-full overflow-hidden">
@@ -83,10 +77,6 @@ export function QuizLayout({ sidebar, content }: QuizLayoutProps) {
                         { isCollapsed, toggleSidebar }
                     )
                     : content}
-                <FileUploadModal
-                    open={isFileUploadModalOpen}
-                    onClose={handleCloseFileUploadModal}
-                />
             </main>
         </div>
     );
