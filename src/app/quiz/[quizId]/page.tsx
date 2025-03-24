@@ -1,4 +1,4 @@
-// src/app/quiz/[quizId]/page.tsx
+// src/app/quiz/[quizId]/layout.tsx
 "use client";
 
 import React from "react";

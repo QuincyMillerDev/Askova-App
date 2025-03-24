@@ -1,4 +1,4 @@
-// src/app/quiz/page.tsx
+// src/app/quiz/layout.tsx
 "use client";
 
 import { QuizWelcome } from "../components/quiz/quiz-welcome";

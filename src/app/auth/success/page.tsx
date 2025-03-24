@@ -1,4 +1,4 @@
-// src/app/auth/success/page.tsx
+// src/app/auth/success/layout.tsx
 "use client";
 
 import { useEffect } from "react";

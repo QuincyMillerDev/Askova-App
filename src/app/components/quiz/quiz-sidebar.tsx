@@ -1,12 +1,13 @@
 "use client"
 import { Button } from "../ui/button"
-import { Brain, LogOut, PlusCircle, LogIn } from "lucide-react"
-import { useSession, signIn, signOut } from "next-auth/react"
+import { Brain, PlusCircle, LogIn } from "lucide-react"
+import { useSession, signIn } from "next-auth/react"
 import { cn } from "~/lib/utils"
 import { useRouter } from "next/navigation"
 import { useLiveQuery } from "dexie-react-hooks"
 import type { Quiz } from "~/types/Quiz"
 import {db} from "~/db/dexie";
+import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
     const { data: session } = useSession()
@@ -74,15 +75,19 @@ export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) 
                 {session ? (
                     <Button
                         variant="outline"
-                        onClick={async () => {
-                            await db.clearAllData();
-                            await signOut({ redirect: false });
-                            router.push(`/quiz`);
-                        }}
+                        onClick={() => router.push('/settings/account')}
                         className="w-full justify-start h-12 relative z-10 border-primary/20"
                     >
-                        <LogOut className="h-5 w-5 mr-3" />
-                        <span className="font-medium">Logout</span>
+                        <Avatar className="h-6 w-6 mr-3">
+                            {session.user.image ? (
+                                <AvatarImage src={session.user.image} alt={session.user.name || ""} />
+                            ) : (
+                                <AvatarFallback className="bg-primary/20 text-primary">
+                                    {session.user.name?.[0] || "U"}
+                                </AvatarFallback>
+                            )}
+                        </Avatar>
+                        <span className="font-medium truncate">{session.user.name || "Account"}</span>
                     </Button>
                 ) : (
                     <div className="space-y-3">

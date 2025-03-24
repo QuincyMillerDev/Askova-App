@@ -7,7 +7,6 @@
 - [x] Add Google as OAuth Provider, remove Discord
 - [ ] LLM implementation
 - [ ] Improve data syncing between Dexie and Prisma
-- [ ] Deleting quizzes
 - [ ] Storing Files
 
 ### Frontend
@@ -18,15 +17,19 @@
 - [ ] Add settings/profile page
 - [x] Add components for Auth
 - [ ] Highlight the selected quiz session
-- [ ] Warn users there quizzes will only be saved if they login
+- [ ] Warn users their quizzes will only be saved if they login
 
 ### Core functionality
-- [ ] Limit users to 10 messages if they don't log in
 - [ ] Setup study session flow:
   - [ ] Upload file/pasting content
   - [ ] Content initiates a study session
   - [ ] AI asks open-ended questions and evaluates user answers
-- [ ] Add payment
+
+
+### Payment stuff
+- [ ] Limit unauthenticated users to 10 messages.
+- [ ] Figure out payment tier.
+- [ ] Integrate payment, Stripe?
 
   ## Relevant Docs
 - [Next.js](https://nextjs.org)
