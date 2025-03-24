@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ChevronLeft, User, CreditCard, Palette, History, Paperclip, LifeBuoy } from 'lucide-react'
+import { ChevronLeft, User, CreditCard, History, Paperclip, Mail } from 'lucide-react'
 import { ScrollArea } from "~/app/components/ui/scroll-area"
 import { Button } from "~/app/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "~/app/components/ui/avatar"
@@ -55,10 +55,9 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
     const tabs = [
         { id: "account", label: "Account", icon: <User className="h-4 w-4 mr-2" /> },
         { id: "subscription", label: "Subscription", icon: <CreditCard className="h-4 w-4 mr-2" /> },
-        { id: "customization", label: "Customization", icon: <Palette className="h-4 w-4 mr-2" /> },
         { id: "history", label: "History & Sync", icon: <History className="h-4 w-4 mr-2" /> },
         { id: "attachments", label: "Attachments", icon: <Paperclip className="h-4 w-4 mr-2" /> },
-        { id: "contact", label: "Contact Us", icon: <LifeBuoy className="h-4 w-4 mr-2" /> },
+        { id: "contact", label: "Contact Us", icon: <Mail className="h-4 w-4 mr-2" /> },
     ]
 
     return (
@@ -113,7 +112,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                             {/* Tabs */}
                             <Card className="mb-8">
                                 <Tabs value={activeTab} className="w-full">
-                                    <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full h-auto">
+                                    <TabsList className="grid grid-cols-3 md:grid-cols-5 w-full h-auto">
                                         {tabs.map((tab) => (
                                             <TabsTrigger
                                                 key={tab.id}

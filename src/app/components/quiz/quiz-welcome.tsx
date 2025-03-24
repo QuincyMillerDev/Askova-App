@@ -1,151 +1,146 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import type { ChangeEvent } from "react"
-import { QuizInput } from "./quiz-input"
-import { v4 as uuidv4 } from "uuid"
-import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
-import type { Quiz } from "~/types/Quiz"
-import type { ChatMessage } from "~/types/ChatMessage"
-import { Brain, Sparkles, BookOpen } from "lucide-react"
-import { ScrollArea } from "~/app/components/ui/scroll-area"
+import type React from "react";
+import { useState, useEffect } from "react";
+import type { ChangeEvent } from "react";
+import { QuizInput } from "./quiz-input";
+import { v4 as uuidv4 } from "uuid";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import type { Quiz } from "~/types/Quiz";
+import type { ChatMessage } from "~/types/ChatMessage";
 import { useQuizSync } from "~/hooks/useQuizSync";
 import { useChatMessageSync } from "~/hooks/useChatMessageSync";
-
+import { Button } from "~/app/components/ui/button";
 
 export function QuizWelcome() {
-    const [inputValue, setInputValue] = useState("")
-    const router = useRouter()
-    const { data: session } = useSession()
+    const [inputValue, setInputValue] = useState("");
+    const [isLoaded, setIsLoaded] = useState(false);
+    const router = useRouter();
+    const { data: session } = useSession();
     const { createQuizSync } = useQuizSync();
     const { addChatMessageSync } = useChatMessageSync();
 
+    useEffect(() => {
+        setIsLoaded(true);
+    }, []);
+
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-        setInputValue(event.target.value)
-    }
+        setInputValue(event.target.value);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        const trimmedInput = inputValue.trim()
-        if (!trimmedInput) return
+        e.preventDefault();
+        const trimmedInput = inputValue.trim();
+        if (!trimmedInput) return;
 
-        // 1. Generate a new quiz session ID.
-        const quizId = uuidv4()
+        const quizId = uuidv4();
 
-        // 2. Build an initial chat message.
         const initialMessage: ChatMessage = {
-            id: Date.now(), // Use timestamp as ID to ensure uniqueness
+            id: Date.now(),
             quizId: quizId,
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
-        }
+        };
 
-        // 3. Build a quiz session object (to be stored in Dexie).
         const newQuiz: Quiz = {
             id: quizId,
             title: trimmedInput,
-            messages: [], // We'll add messages separately
+            messages: [],
             userId: session?.user?.id ?? undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
-        }
+        };
 
         try {
-            // First create the quiz
             await createQuizSync(newQuiz);
-            
-            // Then save the initial message
             await addChatMessageSync(initialMessage);
-            
-            // Finally navigate to the quiz page
             router.push(`/quiz/${quizId}`);
         } catch (error) {
             console.error("Failed to create quiz:", error);
-            // Handle error appropriately
         }
-    }
+    };
 
-    const features = [
-        {
-            icon: <Brain className="h-5 w-5" />,
-            title: "AI-Powered Learning",
-            description: "Personalized study sessions that adapt to your needs",
-        },
-        {
-            icon: <Sparkles className="h-5 w-5" />,
-            title: "Smart Quizzes",
-            description: "Generate quizzes from your notes and study materials",
-        },
-        {
-            icon: <BookOpen className="h-5 w-5" />,
-            title: "Knowledge Retention",
-            description: "Improve memory with spaced repetition techniques",
-        },
-    ]
+    const examplePrompts = [
+        "Quiz me on my biology notes",
+        "Create questions about my history lecture",
+    ];
 
     return (
         <div className="flex h-full w-full">
             <div className="flex-1 relative w-full">
-                <ScrollArea className="w-full h-full">
-                    <div className="mx-auto max-w-4xl space-y-4 p-4 pb-36">
+                <div className="flex items-center justify-center h-full">
+                    <div
+                        className={`mx-auto max-w-xl px-4 pb-36 transition-opacity duration-500 ease-out ${
+                            isLoaded ? "opacity-100" : "opacity-0"
+                        }`}
+                        style={{ maxWidth: "800px" }}
+                    >
+                        {/* Heading */}
+                        <h1
+                            className={`text-3xl font-bold text-left mb-3 transition-transform duration-500 ease-out delay-100 ${
+                                isLoaded ? "translate-y-0" : "translate-y-4"
+                            }`}
+                        >
+                            Study Smarter with <span className="text-primary">Askova</span>
+                        </h1>
 
-                        {/* Hero Section */}
-                        <div className="relative z-10 flex flex-col items-center text-center mt-8 mb-12">
-
-
-                            {/* Brain Illustration */}
-                            <div className="relative w-48 h-48 my-8">
-                                <div
-                                    className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full animate-pulse"
-                                    style={{ animationDuration: "4s" }}
-                                />
-                                <div
-                                    className="absolute inset-4 bg-gradient-to-tr from-primary/60 to-transparent rounded-full animate-pulse"
-                                    style={{ animationDuration: "7s" }}
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <Brain className="h-20 w-20 text-primary" />
-                                </div>
-                            </div>
-
-
-                            <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                                Study Smarter with <span className="text-primary">Askova</span>
-                            </h1>
-
-                            <p className="text-lg text-muted-foreground max-w-2xl">
-                                Your personal AI study companion that helps you learn faster, remember longer, and understand deeper.
+                        {/* Primary Action Description */}
+                        <div
+                            className={`text-left mb-8 transition-transform duration-500 ease-out delay-200 ${
+                                isLoaded ? "translate-y-0" : "translate-y-4"
+                            }`}
+                        >
+                            <p className="text-lg mb-2">Paste your study notes below to begin</p>
+                            <p className="text-sm text-muted-foreground">
+                                Upload your lecture notes, textbook chapters, or study materials
+                                to generate an interactive quiz conversation
                             </p>
-
                         </div>
 
-                        {/* Features Section */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                            {features.map((feature, index) => (
-                                <div
-                                    key={index}
-                                    className="p-4 rounded-xl bg-background border border-border hover:border-primary/50 hover:shadow-md transition-all duration-300"
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                                        {feature.icon}
-                                    </div>
-                                    <h3 className="text-base font-semibold mb-1">{feature.title}</h3>
-                                    <p className="text-sm text-muted-foreground">{feature.description}</p>
-                                </div>
-                            ))}
+                        {/* New Styled Upload Section */}
+                        <div
+                            className={`flex justify-start mb-10 transition-transform duration-500 ease-out delay-300 ${
+                                isLoaded ? "translate-y-0" : "translate-y-4"
+                            }`}
+                        >
+                            <Button variant="secondary">Upload Notes</Button>
                         </div>
 
-                        <div className="text-center text-muted-foreground mb-8">Get started by entering your study topic below</div>
+                        {/* Example Prompts - Secondary */}
+                        <div
+                            className={`text-left transition-opacity duration-500 ease-out delay-400 ${
+                                isLoaded ? "opacity-100" : "opacity-0"
+                            }`}
+                        >
+                            <p className="text-sm text-muted-foreground mb-4">Or try:</p>
+                            <div className="flex flex-col gap-3">
+                                {examplePrompts.map((prompt, index) => (
+                                    <Button
+                                        key={index}
+                                        variant="outline"
+                                        className="rounded-md bg-secondary/10 hover:bg-secondary/20 border-secondary/20 justify-start"
+                                        onClick={() => {
+                                            setInputValue(prompt);
+                                            const inputElement = document.querySelector("textarea");
+                                            if (inputElement) inputElement.focus();
+                                        }}
+                                    >
+                                        {prompt}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                </ScrollArea>
-
-                {/* Input positioned exactly like in the quiz-interface */}
-                <QuizInput input={inputValue} onInputChange={handleInputChange} onSubmit={handleSubmit} isTyping={false} />
+                </div>
+                <QuizInput
+                    input={inputValue}
+                    onInputChange={handleInputChange}
+                    onSubmit={handleSubmit}
+                    isTyping={false}
+                />
             </div>
         </div>
-    )
+    );
 }
-
