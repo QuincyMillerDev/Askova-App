@@ -6,21 +6,18 @@ import type { ChangeEvent } from "react";
 import { QuizInput } from "./quiz-input";
 import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import type { Quiz } from "~/types/Quiz";
-import type { ChatMessage } from "~/types/ChatMessage";
-import { useQuizSync } from "~/hooks/useQuizSync";
-import { useChatMessageSync } from "~/hooks/useChatMessageSync";
+import { useCreateQuiz } from "~/app/hooks/useCreateQuiz";
+import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
 import { Button } from "~/app/components/ui/button";
+import {type ChatMessage, type Quiz} from "~/db/dexie";
 
 export function QuizWelcome() {
     const [inputValue, setInputValue] = useState("");
     const [isLoaded, setIsLoaded] = useState(false);
     const router = useRouter();
-    const { data: session } = useSession();
-    const { createQuizSync } = useQuizSync();
-    const { addChatMessageSync } = useChatMessageSync();
-
+    const { createQuiz } = useCreateQuiz();
+    const { sendMessage } = useSendChatMessage();
+    
     useEffect(() => {
         setIsLoaded(true);
     }, []);
@@ -35,27 +32,30 @@ export function QuizWelcome() {
         if (!trimmedInput) return;
 
         const quizId = uuidv4();
+        const chatMessageId: string = uuidv4();
 
-        const initialMessage: ChatMessage = {
-            id: Date.now(),
+        const newMessage: ChatMessage = {
+            id: chatMessageId,
             quizId: quizId,
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
+            status: "done"
         };
 
         const newQuiz: Quiz = {
             id: quizId,
             title: trimmedInput,
-            messages: [],
-            userId: session?.user?.id ?? undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
+            lastMessageAt: new Date(),
+            status: "done",
+            messages: [newMessage]
         };
 
         try {
-            await createQuizSync(newQuiz);
-            await addChatMessageSync(initialMessage);
+            await createQuiz(newQuiz);
+            await sendMessage(newMessage);
             router.push(`/quiz/${quizId}`);
         } catch (error) {
             console.error("Failed to create quiz:", error);

@@ -1,11 +1,9 @@
-// src/app/auth/success/layout.tsx
 "use client";
 
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {useUserSync} from "~/hooks/useUserSync";
-import {db} from "~/db/dexie";
+import { useUserSync } from "~/app/hooks/useUserSync";
 
 export default function AuthSuccessPage() {
     const searchParams = useSearchParams();
@@ -14,25 +12,24 @@ export default function AuthSuccessPage() {
     const { status } = useSession();
     const isAuthenticated = status === "authenticated";
 
-    // (Optional) Sync server user data back into the client.
+    // Our new hook to synchronize data
     const { syncUserData } = useUserSync();
 
     useEffect(() => {
         async function handleAuthSuccess() {
             if (!isAuthenticated) return;
             try {
-                await db.clearAllData();
+                // Sync outstanding local data (if any) upward and then refresh the
+                // local Dexie store with remote data.
                 await syncUserData();
                 router.push(callbackUrl);
             } catch (error) {
-                console.error("Error during auth success sync:", error);
-                // Redirect to your auth error page with an appropriate query parameter
-                router.push("/auth/error?error=sync");
+                console.error("Error during auth sync:", error);
+                router.push("/auth/error");
             }
         }
         void handleAuthSuccess();
     }, [isAuthenticated, router, callbackUrl, syncUserData]);
-
 
     return (
         <div className="flex h-screen items-center justify-center p-4">
