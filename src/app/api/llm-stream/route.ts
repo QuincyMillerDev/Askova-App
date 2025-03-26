@@ -1,7 +1,5 @@
 // src/app/api/llm-stream/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth"; // Use your auth helper
-import { db } from "~/server/db"; // Prisma client
 import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 import { env } from "~/env";
 import {
@@ -10,6 +8,20 @@ import {
     DEFAULT_GENERATION_CONFIG,
     DEFAULT_SAFETY_SETTINGS,
 } from "~/server/llm/config"; // LLM config
+import { z } from "zod";
+
+// Define the expected input schema for the request body
+const llmStreamInputSchema = z.object({
+    history: z.array(
+        z.object({
+            role: z.enum(["user", "model"]),
+            content: z.string(),
+            // Include other fields if needed, but only role/content are sent to Gemini
+        })
+    ),
+    latestUserMessageContent: z.string(),
+    // quizId: z.string().optional(), // Keep if useful for logging
+});
 
 // Initialize Gemini Client
 const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
@@ -22,46 +34,39 @@ const model = genAI.getGenerativeModel({
     safetySettings: DEFAULT_SAFETY_SETTINGS,
 });
 
-export async function GET(req: NextRequest) {
+// --- Change GET to POST ---
+export async function POST(req: NextRequest) {
     try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-        const userId = session.user.id;
 
-        const { searchParams } = new URL(req.url);
-        const quizId = searchParams.get("quizId");
-        const latestUserMessageContent = searchParams.get(
-            "latestUserMessageContent"
-        );
 
-        if (!quizId || !latestUserMessageContent) {
-            return new NextResponse("Missing quizId or message content", {
-                status: 400,
-            });
+        // --- Get Data from Request Body ---
+        let requestBody: unknown;
+        try {
+            requestBody = await req.json();
+        } catch (parseError) {
+            console.error("[SSE ERROR] Invalid JSON body:", parseError);
+            return new NextResponse("Invalid request body", { status: 400 });
         }
 
-        // --- Authorization & History Fetch (from Prisma) ---
-        const quiz = await db.quiz.findUnique({
-            where: { id_userId: { id: quizId, userId: userId } },
-            include: {
-                messages: {
-                    orderBy: { createdAt: "asc" },
-                    // Consider limiting history depth based on token limits
-                    // takeLast: 20, // Example
-                },
-            },
-        });
-
-        if (!quiz) {
-            return new NextResponse("Quiz not found or access denied", {
-                status: 403,
-            });
+        // --- Validate Input Body ---
+        const parseResult = llmStreamInputSchema.safeParse(requestBody);
+        if (!parseResult.success) {
+            console.error("[SSE ERROR] Invalid input:", parseResult.error);
+            return new NextResponse(
+                `Invalid input: ${parseResult.error.message}`,
+                { status: 400 }
+            );
         }
+        const { history, latestUserMessageContent } = parseResult.data;
+        // const quizId = parseResult.data.quizId; // Optional for logging
 
-        // --- Format History for Gemini ---
-        const formattedHistory: Content[] = quiz.messages.map((msg) => ({
+        // --- Remove Prisma Fetch & Authorization ---
+        // const quiz = await db.quiz.findUnique(...)
+        // if (!quiz) { ... }
+
+        // --- Format History for Gemini (from request body) ---
+        const formattedHistory: Content[] = history.map((msg) => ({
+            // Ensure role matches Gemini's expectation ('model' not 'assistant')
             role: msg.role === "user" ? "user" : "model",
             parts: [{ text: msg.content }],
         }));
@@ -71,7 +76,8 @@ export async function GET(req: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    console.log(`[SSE] Starting generation for quiz ${quizId}`);
+                    // console.log(`[SSE] Starting generation for quiz ${quizId ?? 'N/A'}`); // Optional logging
+                    console.log(`[SSE] Starting generation...`);
                     const chat = model.startChat({
                         history: formattedHistory,
                         generationConfig: DEFAULT_GENERATION_CONFIG,
@@ -86,7 +92,6 @@ export async function GET(req: NextRequest) {
                         const chunkText = chunk.text();
                         if (chunkText) {
                             // Format as SSE message: data: <json-stringified-chunk>\n\n
-                            // Sending plain text is simpler here
                             controller.enqueue(
                                 encoder.encode(`data: ${JSON.stringify(chunkText)}\n\n`)
                             );
@@ -94,11 +99,13 @@ export async function GET(req: NextRequest) {
                     }
                     // Signal completion
                     controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
-                    console.log(`[SSE] Stream completed for quiz ${quizId}`);
+                    // console.log(`[SSE] Stream completed for quiz ${quizId ?? 'N/A'}`); // Optional logging
+                    console.log(`[SSE] Stream completed.`);
                     controller.close();
                 } catch (error) {
                     console.error(
-                        `[SSE ERROR] LLM generation failed for quiz ${quizId}:`,
+                        // `[SSE ERROR] LLM generation failed for quiz ${quizId ?? 'N/A'}:`, // Optional logging
+                        `[SSE ERROR] LLM generation failed:`,
                         error
                     );
                     const errorMessage =
@@ -113,7 +120,8 @@ export async function GET(req: NextRequest) {
                 }
             },
             cancel() {
-                console.log(`[SSE] Stream cancelled for quiz ${quizId}`);
+                // console.log(`[SSE] Stream cancelled for quiz ${quizId ?? 'N/A'}`); // Optional logging
+                console.log(`[SSE] Stream cancelled.`);
             },
         });
 
@@ -122,7 +130,7 @@ export async function GET(req: NextRequest) {
                 "Content-Type": "text/event-stream",
                 "Cache-Control": "no-cache",
                 Connection: "keep-alive",
-                // Optional: Add CORS headers if needed, though same-origin should be fine
+                // Optional: Add CORS headers if needed
                 // 'Access-Control-Allow-Origin': '*',
             },
         });
@@ -131,3 +139,8 @@ export async function GET(req: NextRequest) {
         return new NextResponse("Internal Server Error", { status: 500 });
     }
 }
+
+// Optional: Add a simple GET handler if needed for health checks, etc.
+// export async function GET() {
+//   return new NextResponse("SSE endpoint is POST only.", { status: 405 });
+// }
