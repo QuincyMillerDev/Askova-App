@@ -6,8 +6,9 @@
 - [x] Add support for multiple quiz sessions at once
 - [x] Add Google as OAuth Provider, remove Discord
 - [ ] LLM implementation
-- [ ] Improve data syncing between Dexie and Prisma
+- [x] Improve data syncing between Dexie and Prisma
 - [ ] Storing Files
+- [ ] Update status fields for quizzes and messages
 
 ### Frontend
 - [ ] Support message editing
