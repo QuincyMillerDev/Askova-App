@@ -1,13 +1,13 @@
-// src/app/components/quiz-interface.tsx
+// src/app/components/quiz/quiz-interface.tsx
 "use client";
 
 import React, {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    type FormEvent,
+    useCallback, // Import useCallback
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "~/lib/utils";
@@ -17,7 +17,7 @@ import { type ChatMessage, db } from "~/db/dexie";
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
-import { v4 as uuidv4 } from "uuid"; // Import uuid
+import { v4 as uuidv4 } from "uuid";
 import { ChatMessageService } from "~/services/chatMessageService";
 
 interface QuizInterfaceProps {
@@ -29,31 +29,24 @@ interface SseErrorData {
 }
 
 function isSseErrorData(obj: unknown): obj is SseErrorData {
-    return (
-        typeof obj === "object" &&
-        obj !== null &&
-        true
-    );
+    return typeof obj === "object" && obj !== null && true;
 }
 
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
-    const [isTyping, setIsTyping] = useState(false); // Indicates AI is processing/responding
+    const [isTyping, setIsTyping] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { sendMessageAndUpdate } = useSendChatMessage(); // Hook for saving & potential sync
-
-    // --- State for managing the SSE connection ---
+    const { sendMessageAndUpdate } = useSendChatMessage();
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    // Use Dexie Live Query to always read all messages for this session.
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () =>
             db.chatMessages
                 .where("quizId")
                 .equals(quizId)
                 .sortBy("createdAt"),
-        [quizId]
+        [quizId] // Dependency: Re-run query if quizId changes
     );
 
     const localMessages: ChatMessage[] = useMemo(
@@ -61,26 +54,23 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
         [liveMessages]
     );
 
-    // Trigger fade-in on quizId change
     useEffect(() => {
         setIsLoaded(false);
         const timer = setTimeout(() => setIsLoaded(true), 50);
         return () => clearTimeout(timer);
     }, [quizId]);
 
-    // Auto-scroll on message updates
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [localMessages]);
 
-    // --- Cleanup SSE connection on unmount or quizId change ---
     useEffect(() => {
         return () => {
-            abortControllerRef.current?.abort(); // Abort ongoing fetch if component unmounts/changes
+            abortControllerRef.current?.abort();
         };
-    }, [quizId]); // Rerun cleanup if quizId changes
+    }, [quizId]);
 
-    // --- Handle SSE Stream ---
+    // --- Refactored SSE Stream Processing ---
     const processStream = useCallback(
         async (
             reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -89,146 +79,311 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
         ) => {
             let buffer = "";
 
-            // --- Helper to finalize the message ---
-            const finalizeModelMessage = async (status: ChatMessage['status'], contentOverride?: string) => {
-                // Fetch the latest state of the message from Dexie
-                const message = await ChatMessageService.getLocalMessageById(modelMessageId);
+            const finalizeModelMessage = async (
+                status: ChatMessage["status"],
+                contentOverride?: string
+            ) => {
+                const message = await ChatMessageService.getLocalMessageById(
+                    modelMessageId
+                );
                 if (!message) {
-                    console.error(`[SSE Client] Cannot finalize message ${modelMessageId}: Not found in Dexie.`);
-                    return; // Exit if message somehow disappeared
-                }
-
-                // Avoid finalizing if already in a final state (done/error)
-                if (message.status === 'done' || message.status === 'error') {
-                    console.warn(`[SSE Client] Attempted to re-finalize message ${modelMessageId} which is already ${message.status}.`);
+                    console.error(
+                        `[SSE Client] Cannot finalize message ${modelMessageId}: Not found in Dexie.`
+                    );
                     return;
                 }
-
-                // Create the final message object
+                if (message.status === "done" || message.status === "error") {
+                    console.warn(
+                        `[SSE Client] Attempted to re-finalize message ${modelMessageId} which is already ${message.status}.`
+                    );
+                    return;
+                }
                 const finalMessage: ChatMessage = {
                     ...message,
-                    status: status, // Set the final status ('done' or 'error')
-                    // Use override content if provided (for errors), otherwise keep accumulated content
+                    status: status,
                     content: contentOverride ?? message.content,
                 };
-
-                // Use the hook to save locally and trigger potential remote sync
                 try {
-                    await sendMessageAndUpdate(finalMessage);
-                    console.log(`[SSE Client] Finalized message ${modelMessageId} with status ${status}.`);
+                    // Use service directly instead of hook here for consistency within processStream
+                    await ChatMessageService.addOrUpdateLocalMessage(
+                        finalMessage
+                    );
+                    console.log(
+                        `[SSE Client] Finalized message ${modelMessageId} with status ${status}.`
+                    );
                 } catch (error) {
-                    console.error(`[SSE Client] Error finalizing message ${modelMessageId} using sendMessageAndUpdate:`, error);
-                    // Fallback: At least update local status directly if hook fails
-                    await ChatMessageService.updateLocalMessageStatus(modelMessageId, 'error', 'Failed to finalize message state.');
+                    console.error(
+                        `[SSE Client] Error finalizing message ${modelMessageId}:`,
+                        error
+                    );
+                    await ChatMessageService.updateLocalMessageStatus(
+                        modelMessageId,
+                        "error",
+                        "Failed to finalize message state."
+                    );
                 }
             };
-            // --- End Helper ---
 
             try {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) {
                         console.log("[SSE Client] Stream finished.");
-                        // Finalize as 'done' using the helper
-                        await finalizeModelMessage('done');
-                        break; // Exit loop
+                        await finalizeModelMessage("done");
+                        break;
                     }
-
                     buffer += decoder.decode(value, { stream: true });
-
                     let boundary = buffer.indexOf("\n\n");
                     while (boundary !== -1) {
                         const message = buffer.substring(0, boundary);
                         buffer = buffer.substring(boundary + 2);
-
                         if (message.startsWith("event: done")) {
                             console.log("[SSE Client] Received done event.");
-                            // Finalize as 'done' using the helper
-                            await finalizeModelMessage('done');
-                            // Don't break here, allow stream to close naturally via reader.read()
+                            await finalizeModelMessage("done");
                         } else if (message.startsWith("event: error")) {
-                            const dataLine = message.split("\n").find(l => l.startsWith("data: "));
-                            let displayErrorMessage = "An error occurred while generating the response."; // Default
-
+                            const dataLine = message
+                                .split("\n")
+                                .find((l) => l.startsWith("data: "));
+                            let displayErrorMessage =
+                                "An error occurred while generating the response.";
                             if (dataLine) {
                                 const errorJson = dataLine.substring(6);
-                                let parsedErrorData: unknown;
                                 try {
-                                    parsedErrorData = JSON.parse(errorJson);
+                                    const parsedErrorData = JSON.parse(
+                                        errorJson
+                                    ) as unknown;
                                     if (isSseErrorData(parsedErrorData)) {
-                                        console.error("[SSE Client] Received error event:", parsedErrorData);
-                                        if (parsedErrorData.message.includes("SAFETY")) {
-                                            displayErrorMessage = "The response could not be generated due to safety guidelines. Please try rephrasing your input or asking a different question.";
+                                        console.error(
+                                            "[SSE Client] Received error event:",
+                                            parsedErrorData
+                                        );
+                                        if (
+                                            parsedErrorData.message.includes(
+                                                "SAFETY"
+                                            )
+                                        ) {
+                                            displayErrorMessage =
+                                                "The response could not be generated due to safety guidelines. Please try rephrasing your input or asking a different question.";
                                         } else {
-                                            displayErrorMessage = `LLM Error: ${parsedErrorData.message.split(':').slice(-1)[0]?.trim() ?? 'Unknown issue'}`;
+                                            displayErrorMessage = `LLM Error: ${
+                                                parsedErrorData.message
+                                                    .split(":")
+                                                    .slice(-1)[0]
+                                                    ?.trim() ?? "Unknown issue"
+                                            }`;
                                         }
                                     } else {
-                                        console.error("[SSE Client] Received error event with unexpected structure:", parsedErrorData);
-                                        displayErrorMessage = "Received a malformed error from the server.";
+                                        console.error(
+                                            "[SSE Client] Received error event with unexpected structure:",
+                                            parsedErrorData
+                                        );
+                                        displayErrorMessage =
+                                            "Received a malformed error from the server.";
                                     }
                                 } catch (e) {
-                                    console.error("[SSE Client] Error parsing error JSON:", e, errorJson);
-                                    displayErrorMessage = "Failed to understand the error from the server.";
+                                    console.error(
+                                        "[SSE Client] Error parsing error JSON:",
+                                        e,
+                                        errorJson
+                                    );
+                                    displayErrorMessage =
+                                        "Failed to understand the error from the server.";
                                 }
                             } else {
-                                displayErrorMessage = "Received an unspecified error from the server.";
+                                displayErrorMessage =
+                                    "Received an unspecified error from the server.";
                             }
-
-                            await finalizeModelMessage('error', displayErrorMessage);
-                            // Stop processing on error
+                            await finalizeModelMessage(
+                                "error",
+                                displayErrorMessage
+                            );
                             return;
-
                         } else if (message.startsWith("data: ")) {
                             const dataJson = message.substring(6);
-                            let parsedData: unknown;
                             try {
-                                parsedData = JSON.parse(dataJson);
+                                const parsedData = JSON.parse(
+                                    dataJson
+                                ) as unknown;
                                 if (typeof parsedData === "string") {
-                                  await ChatMessageService.appendLocalMessageContent(
-                                    modelMessageId,
-                                    "streaming",
-                                    parsedData,
-                                  );
+                                    await ChatMessageService.appendLocalMessageContent(
+                                        modelMessageId,
+                                        "streaming",
+                                        parsedData
+                                    );
                                 } else {
-                                    console.warn("[SSE Client] Received non-string data chunk:", parsedData);
+                                    console.warn(
+                                        "[SSE Client] Received non-string data chunk:",
+                                        parsedData
+                                    );
                                 }
                             } catch (e) {
-                                console.error("[SSE Client] Error parsing data JSON:", e, dataJson);
+                                console.error(
+                                    "[SSE Client] Error parsing data JSON:",
+                                    e,
+                                    dataJson
+                                );
                             }
                         }
                         boundary = buffer.indexOf("\n\n");
                     }
                 }
             } catch (error) {
-                // Handle fetch errors or unexpected stream closure
                 let errorMsg = "Stream reading failed";
-                if ((error as Error).name === 'AbortError') {
+                if ((error as Error).name === "AbortError") {
                     console.log("[SSE Client] Stream fetch aborted.");
                     errorMsg = "Stream cancelled";
                 } else {
                     console.error("[SSE Client] Error reading stream:", error);
                 }
-                // Finalize as 'error' on unexpected catch
-                await finalizeModelMessage('error', errorMsg);
-
+                await finalizeModelMessage("error", errorMsg);
             } finally {
                 reader.releaseLock();
-                setIsTyping(false); // Ensure typing indicator stops
+                setIsTyping(false);
             }
         },
-        // Add sendMessageAndUpdate to dependency array
-        [sendMessageAndUpdate]
+        []
     );
 
-    // --- Handle Form Submission ---
+    // --- NEW: Function to Trigger AI Response ---
+    const triggerAIResponse = useCallback(
+        async (userMessage: ChatMessage, history: ChatMessage[]) => {
+            if (!quizId || isTyping) return; // Don't trigger if already typing
+
+            console.log(
+                `[AI Trigger] Triggering AI for message ${userMessage.id} in quiz ${quizId}`
+            );
+
+            abortControllerRef.current?.abort(); // Abort any ongoing stream
+            const controller = new AbortController();
+            abortControllerRef.current = controller;
+
+            // Prepare history for the API call (excluding the user message itself)
+            const historyForApi = history.map((msg) => ({
+                role: msg.role,
+                content: msg.content,
+            }));
+
+            const modelMessageId = uuidv4();
+            const modelMessagePlaceholder: ChatMessage = {
+                id: modelMessageId,
+                quizId: quizId,
+                role: "model",
+                content: "", // Start empty
+                createdAt: new Date(userMessage.createdAt.getTime() + 1), // Ensure it's after user msg
+                status: "waiting", // Initial status
+            };
+
+            setIsTyping(true); // Start loading indicator
+
+            try {
+                // Save AI placeholder locally *before* API call
+                await ChatMessageService.addOrUpdateLocalMessage(
+                    modelMessagePlaceholder
+                );
+
+                // Make API call to SSE endpoint
+                const response = await fetch("/api/llm-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        // Send history *before* the current user message
+                        history: historyForApi,
+                        // Send the content of the user message that triggers this response
+                        latestUserMessageContent: userMessage.content,
+                    }),
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) {
+                    let errorText = "API request failed";
+                    try {
+                        errorText = await response.text();
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    const errorMessage = `API request failed with status ${response.status}: ${errorText}`;
+                    console.error("[SSE Client]", errorMessage);
+                    await ChatMessageService.updateLocalMessageStatus(
+                        modelMessageId,
+                        "error",
+                        errorMessage
+                    );
+                    setIsTyping(false);
+                    return;
+                }
+
+                if (!response.body) {
+                    console.error("[SSE Client] Response body is null");
+                    await ChatMessageService.updateLocalMessageStatus(
+                        modelMessageId,
+                        "error",
+                        "Received empty response from server"
+                    );
+                    setIsTyping(false);
+                    return;
+                }
+
+                // Process the stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                await processStream(reader, decoder, modelMessageId);
+            } catch (error) {
+                if ((error as Error).name !== "AbortError") {
+                    console.error(
+                        "[AI Trigger] Error triggering AI response:",
+                        error
+                    );
+                    await ChatMessageService.updateLocalMessageStatus(
+                        modelMessageId,
+                        "error",
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to get response"
+                    );
+                    setIsTyping(false);
+                } else {
+                    console.log("[AI Trigger] Fetch aborted.");
+                    // Update status if aborted before streaming starts
+                    await ChatMessageService.updateLocalMessageStatus(
+                        modelMessageId,
+                        "error",
+                        "Request cancelled"
+                    );
+                    setIsTyping(false);
+                }
+            }
+        },
+        [quizId, isTyping, processStream] // Dependencies for useCallback
+    );
+
+    // --- Effect to Trigger Initial AI Response ---
+    useEffect(() => {
+        // Check conditions:
+        // 1. We have messages loaded (`localMessages` is not empty).
+        // 2. There is exactly ONE message.
+        // 3. That message is from the 'user'.
+        // 4. The AI is not already 'typing'.
+        if (
+            localMessages &&
+            localMessages.length === 1 &&
+            localMessages[0]?.role === "user" &&
+            !isTyping
+        ) {
+            console.log(
+                `[Initial Trigger] Detected new quiz ${quizId} with one user message. Triggering AI.`
+            );
+            const firstMessage = localMessages[0];
+            // Call the trigger function with the first message and an empty history
+            // Use void to explicitly ignore the promise return if not needed here
+            void triggerAIResponse(firstMessage, []);
+        }
+    }, [quizId, localMessages, isTyping, triggerAIResponse]); // Dependencies
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const trimmedInput = input.trim();
+        // Don't submit if no input, no quizId, or AI is already typing
         if (!trimmedInput || !quizId || isTyping) return;
-
-        abortControllerRef.current?.abort();
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
 
         const userMessageId = uuidv4();
         const userMessage: ChatMessage = {
@@ -237,107 +392,24 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
-            status: "done",
+            status: "done", // User messages are immediately 'done'
         };
 
-        setInput("");
+        setInput(""); // Clear input optimistically
 
-        const historyForApi = [
-            ...localMessages,
-            userMessage,
-        ].map((msg) => ({ role: msg.role, content: msg.content }));
-
-        const modelMessageId = uuidv4();
-        const modelMessagePlaceholder: ChatMessage = {
-            id: modelMessageId,
-            quizId: quizId,
-            role: "model",
-            content: "",
-            createdAt: new Date(userMessage.createdAt.getTime() + 1),
-            status: "waiting",
-        };
-
-        // --- Start API Interaction ---
-        setIsTyping(true); // Start loading indicator *before* try block
+        // Prepare history *before* adding the new user message
+        const historyBeforeNewMessage = [...localMessages];
 
         try {
-            // Save user message and AI placeholder locally *before* API call
+            // 1. Save the user's message locally (and sync if needed via hook)
             await sendMessageAndUpdate(userMessage);
-            await ChatMessageService.addOrUpdateLocalMessage(
-                modelMessagePlaceholder
-            );
 
-            // --- Make API call to SSE endpoint ---
-            const response = await fetch("/api/llm-stream", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    history: historyForApi.slice(0, -1),
-                    latestUserMessageContent: userMessage.content,
-                }),
-                signal: controller.signal,
-            });
-
-            // --- Handle non-OK response directly ---
-            if (!response.ok) {
-                let errorText = "API request failed";
-                try {
-                    // Try to get more specific error text from the response
-                    errorText = await response.text();
-                } catch (_) {
-                    // Ignore error reading response body if it fails
-                }
-                const errorMessage = `API request failed with status ${response.status}: ${errorText}`;
-                console.error("[SSE Client]", errorMessage);
-                // Update placeholder to show error
-                await ChatMessageService.updateLocalMessageStatus(
-                    modelMessageId,
-                    "error",
-                    errorMessage
-                );
-                setIsTyping(false); // Stop loading indicator
-                return; // Exit handleSubmit early
-            }
-
-            // --- Handle OK response ---
-            if (!response.body) {
-                // Handle case where response is OK but body is null
-                console.error("[SSE Client] Response body is null");
-                await ChatMessageService.updateLocalMessageStatus(
-                    modelMessageId,
-                    "error",
-                    "Received empty response from server"
-                );
-                setIsTyping(false);
-                return; // Exit handleSubmit early
-            }
-
-            // --- Process the stream ---
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            // processStream now handles setting isTyping(false) in its finally block
-            await processStream(reader, decoder, modelMessageId);
-
+            // 2. Trigger the AI response using the new message and the history *before* it
+            await triggerAIResponse(userMessage, historyBeforeNewMessage);
         } catch (error) {
-            // This catch block now primarily handles errors *during* fetch (network issues)
-            // or errors *before* fetch (e.g., saving to Dexie failed - though less likely here)
-            // It also catches AbortError if the fetch itself is aborted.
-            if ((error as Error).name !== 'AbortError') {
-                console.error("Error sending message or processing stream:", error);
-                // Update placeholder to show error
-                await ChatMessageService.updateLocalMessageStatus(
-                    modelMessageId,
-                    "error",
-                    error instanceof Error ? error.message : "Failed to get response"
-                );
-                setIsTyping(false); // Stop loading indicator on error
-            } else {
-                console.log("[SSE Client] Fetch aborted.");
-                // Status update for abort is handled in processStream's finally block
-                // or here if the fetch itself was aborted before streaming started.
-                // Ensure isTyping is false if abort happens before processStream runs.
-                setIsTyping(false);
-            }
+            // Error handling specifically for saving the user message (less likely)
+            console.error("Error saving user message before triggering AI:", error);
+            // Optionally: Revert UI changes or show error to user
         }
     };
 
@@ -355,7 +427,9 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                             <div
                                 key={message.id}
                                 className={`flex ${
-                                    message.role === "user" ? "justify-end" : "justify-start"
+                                    message.role === "user"
+                                        ? "justify-end"
+                                        : "justify-start"
                                 }`}
                             >
                                 <div
@@ -365,46 +439,55 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                                             ? "bg-primary text-primary-foreground"
                                             : "bg-muted text-muted-foreground",
                                         "shadow-sm",
-                                        // Add visual feedback for non-'done' states
-                                        message.status === "waiting" && "opacity-70 italic",
-                                        message.status === "streaming" && "opacity-90",
-                                        message.status === "error" && "bg-destructive/20 text-destructive border border-destructive"
+                                        message.status === "waiting" &&
+                                        "opacity-70 italic",
+                                        message.status === "streaming" &&
+                                        "opacity-90",
+                                        message.status === "error" &&
+                                        "bg-destructive/20 text-destructive border border-destructive"
                                     )}
                                     style={{ overflowWrap: "break-word" }}
                                 >
                                     <div className="markdown">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                            {/* Show placeholder text or error */}
-                                            {message.status === 'waiting' ? '...' : message.content}
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                        >
+                                            {message.status === "waiting"
+                                                ? "..."
+                                                : message.content}
                                         </ReactMarkdown>
                                     </div>
-                                    {/* Optional: Display explicit error status */}
-                                    {message.status === 'error' && (
-                                        <p className="text-xs mt-1 text-destructive/80">Error receiving response.</p>
+                                    {message.status === "error" && (
+                                        <p className="text-xs mt-1 text-destructive/80">
+                                            Error receiving response.
+                                        </p>
                                     )}
                                 </div>
                             </div>
                         ))}
-                        {/* Typing indicator now controlled by isTyping state */}
-                        {isTyping && localMessages[localMessages.length - 1]?.role !== 'model' && ( // Only show if last message isn't the model streaming
-                            <div className="flex justify-start">
-                                <div className="max-w-[80%] rounded-lg p-4 bg-muted">
-                                    <div className="flex space-x-2">
-                                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+
+                        {isTyping &&
+                            localMessages[localMessages.length - 1]?.role !==
+                            "model" && (
+                                <div className="flex justify-start">
+                                    <div className="max-w-[80%] rounded-lg p-4 bg-muted">
+                                        <div className="flex space-x-2">
+                                            <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                            <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                            <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
+
                 <QuizInput
                     input={input}
                     onInputChange={(e) => setInput(e.target.value)}
                     onSubmit={handleSubmit}
-                    isTyping={isTyping} // Disable input while AI is responding
+                    isTyping={isTyping}
                     disabled={!quizId}
                 />
             </div>

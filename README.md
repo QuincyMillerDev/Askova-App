@@ -5,16 +5,17 @@
 - [x] Add Authentication with NextAuth
 - [x] Add support for multiple quiz sessions at once
 - [x] Add Google as OAuth Provider, remove Discord
-- [ ] LLM implementation
+- [x] LLM implementation
 - [x] Improve data syncing between Dexie and Prisma
 - [ ] Storing Files
-- [ ] Update status fields for quizzes and messages
+- [x] Update status fields for quizzes and messages
+- [ ] Allow for deleting quizzes or whole account
 
 ### Frontend
 - [ ] Support message editing
 - [x] Migrate existing UI from previous repository
 - [ ] Add messages components that support markdown
-- [ ] LLM response streaming on frontend
+- [x] LLM response streaming on frontend
 - [x] Add settings/profile page
 - [ ] Add other settings/ pages
 - [x] Add components for Auth
@@ -26,7 +27,7 @@
 - [ ] Setup study session flow:
   - [ ] Upload file/pasting content
   - [ ] Content initiates a study session
-  - [ ] AI asks open-ended questions and evaluates user answers
+  - [x] AI asks open-ended questions and evaluates user answers
 
 ### Payment stuff
 - [ ] Limit unauthenticated users to 10 messages.
