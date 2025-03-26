@@ -5,8 +5,7 @@ import { useSession, signIn } from "next-auth/react"
 import { cn } from "~/lib/utils"
 import { useRouter } from "next/navigation"
 import { useLiveQuery } from "dexie-react-hooks"
-import type { Quiz } from "~/types/Quiz"
-import {db} from "~/db/dexie";
+import {db, type Quiz} from "~/db/dexie";
 import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
 
 export function QuizSidebar({ isCollapsed = false }: { isCollapsed?: boolean }) {
