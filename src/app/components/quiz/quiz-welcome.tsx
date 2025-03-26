@@ -7,7 +7,6 @@ import { QuizInput } from "./quiz-input";
 import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
 import { useCreateQuiz } from "~/app/hooks/useCreateQuiz";
-import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
 import { Button } from "~/app/components/ui/button";
 import {type ChatMessage, type Quiz} from "~/db/dexie";
 
@@ -16,8 +15,7 @@ export function QuizWelcome() {
     const [isLoaded, setIsLoaded] = useState(false);
     const router = useRouter();
     const { createQuiz } = useCreateQuiz();
-    const { sendMessage } = useSendChatMessage();
-    
+
     useEffect(() => {
         setIsLoaded(true);
     }, []);
@@ -50,12 +48,10 @@ export function QuizWelcome() {
             updatedAt: new Date(),
             lastMessageAt: new Date(),
             status: "done",
-            messages: [newMessage]
         };
 
         try {
-            await createQuiz(newQuiz);
-            await sendMessage(newMessage);
+            await createQuiz(newQuiz, newMessage);
             router.push(`/quiz/${quizId}`);
         } catch (error) {
             console.error("Failed to create quiz:", error);

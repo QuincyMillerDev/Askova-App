@@ -12,11 +12,11 @@ import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { db } from "~/db/dexie";
-import type { ChatMessage } from "~/types/ChatMessage";
+import { db, type ChatMessage } from "~/db/dexie"; // Import ChatMessage type from dexie
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSendChatMessage } from "~/app/hooks/useSendChatMessage"
+import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
+import { v4 as uuidv4 } from "uuid"; // Import uuid
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -24,18 +24,25 @@ interface QuizInterfaceProps {
 
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
+    // isTyping might be repurposed later for actual AI response indication
     const [isTyping, setIsTyping] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { addChatMessageSync } = useSendChatMessage();
+    // Use the correct function name from the hook
+    const { sendMessageAndUpdate } = useSendChatMessage();
 
     // Use Dexie Live Query to always read all messages for this session.
+    // Ensure the query fetches messages ordered by creation time for display
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
-        () => db.chatMessages.where("quizId").equals(quizId).toArray(),
-        [quizId]
+        () =>
+            db.chatMessages
+                .where("quizId")
+                .equals(quizId)
+                .sortBy("createdAt"), // Sort by createdAt
+        [quizId] // Dependency array includes quizId
     );
 
-    // Wrap initialization of localMessages in its own useMemo().
+    // Memoize localMessages based on liveMessages
     const localMessages: ChatMessage[] = useMemo(
         () => liveMessages ?? [],
         [liveMessages]
@@ -52,52 +59,76 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
 
     // Auto-scroll when messages update.
     useEffect(() => {
+        // Scroll to bottom when new messages are added or component loads
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [localMessages]);
+    }, [localMessages]); // Trigger scroll on message changes
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        const trimmed = input.trim();
-        if (!trimmed) return;
+        const trimmedInput = input.trim();
+        if (!trimmedInput || !quizId) return; // Ensure quizId is also present
 
-        // Create a new user message.
+        // Generate a unique ID for the new message
+        const messageId = uuidv4();
+
+        // Create a new user message conforming to the Dexie ChatMessage type
         const userMessage: ChatMessage = {
-            id: Date.now(), // temporary local id
+            id: messageId,
             quizId: quizId,
             role: "user",
-            content: trimmed,
+            content: trimmedInput,
             createdAt: new Date(),
+            status: "done", // Set initial status (can be updated later for streaming/sync)
         };
 
-        try {
-            await addChatMessageSync(userMessage);
-            setInput("");
+        // Clear input immediately for better UX
+        setInput("");
 
-            // Trigger echo simulation for the new message.
-            if (!isTyping) {
-                setIsTyping(true);
-                setTimeout(() => {
-                    const modelMessage: ChatMessage = {
-                        id: Date.now() + 1,
-                        quizId: quizId,
-                        role: "model",
-                        content: `Echo: ${trimmed}`,
-                        createdAt: new Date(),
-                    };
-                    void addChatMessageSync(modelMessage);
-                    setIsTyping(false);
-                }, 1000);
-            }
+        try {
+            // Call the hook function to save locally and trigger background sync
+            await sendMessageAndUpdate(userMessage);
+
+            // --- Placeholder for AI Interaction ---
+            // TODO: Replace this section with actual AI call
+            // 1. Set isTyping(true)
+            // 2. Make API call to your LLM endpoint (passing userMessage.content, quizId, history etc.)
+            // 3. Handle streaming response:
+            //    - Create a placeholder model message locally (e.g., status: 'waiting' or 'streaming')
+            //    - Update the placeholder message content as chunks arrive
+            //    - Update status to 'done' when streaming finishes
+            // 4. Handle non-streaming response:
+            //    - Create the model message locally once response is received (status: 'done')
+            // 5. Call `sendMessage` for the model's response to save it locally and sync
+            // 6. Set isTyping(false)
+            // Example (Conceptual - Non-streaming):
+            /*
+                  setIsTyping(true);
+                  // Simulate API call delay
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  const modelResponse: ChatMessage = {
+                      id: uuidv4(),
+                      quizId: quizId,
+                      role: "model",
+                      content: `AI response to: "${trimmedInput}"`,
+                      createdAt: new Date(),
+                      status: "done",
+                  };
+                  await sendMessage(modelResponse);
+                  setIsTyping(false);
+                  */
+            // --- End Placeholder ---
         } catch (error) {
-            console.error("Error handling message:", error);
-            // Handle error appropriately
+            console.error("Error sending message:", error);
+            // TODO: Provide user feedback about the error
+            // Maybe add the message back to the input?
+            // setInput(trimmedInput); // Or display an error message component
         }
     };
 
     return (
         <div className="flex h-full w-full">
             <div className="flex-1 relative w-full">
-                <ScrollArea className="w-full h-full">
+                <ScrollArea className="h-full w-full">
                     {/* The content container transitions opacity over 300ms */}
                     <div
                         className={cn(
@@ -107,6 +138,7 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                     >
                         {localMessages.map((message) => (
                             <div
+                                // Use message.id which is now a UUID string
                                 key={message.id}
                                 className={`flex ${
                                     message.role === "user" ? "justify-end" : "justify-start"
@@ -114,68 +146,46 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                             >
                                 <div
                                     className={cn(
-                                        "rounded-lg p-4",
+                                        "max-w-[85%] rounded-lg p-3 md:p-4", // Adjusted padding slightly
                                         message.role === "user"
                                             ? "bg-primary text-primary-foreground"
-                                            : "",
-                                        "max-w-full"
+                                            : "bg-muted text-muted-foreground", // Use muted for model messages
+                                        "shadow-sm" // Add subtle shadow
                                     )}
-                                    style={{ overflowWrap: "anywhere" }}
+                                    style={{ overflowWrap: "break-word" }} // Use break-word for better wrapping
                                 >
-                                    <div
-                                        className="markdown prose-sm dark:prose-invert"
-                                        style={{ wordBreak: "break-word" }}
-                                    >
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={{
-                                                pre: (props) => (
-                                                    <pre
-                                                        style={{
-                                                            overflowX: "auto",
-                                                            maxWidth: "100%",
-                                                        }}
-                                                        {...props}
-                                                    />
-                                                ),
-                                                code: (props) => (
-                                                    <code
-                                                        style={{
-                                                            overflowWrap: "break-word",
-                                                            whiteSpace: "pre-wrap",
-                                                        }}
-                                                        {...props}
-                                                    />
-                                                ),
-                                                p: (props) => <p {...props} />,
-                                                a: (props) => <a {...props} />,
-                                            }}
-                                        >
+                                    {/* Apply markdown styling defined in globals.css */}
+                                    <div className="markdown">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                             {message.content}
                                         </ReactMarkdown>
                                     </div>
                                 </div>
                             </div>
                         ))}
+                        {/* Typing indicator can be used for actual AI response generation */}
                         {isTyping && (
                             <div className="flex justify-start">
                                 <div className="max-w-[80%] rounded-lg p-4 bg-muted">
                                     <div className="flex space-x-2">
-                                        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" />
-                                        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce delay-75" />
-                                        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce delay-150" />
+                                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                        <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                        <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
                                     </div>
                                 </div>
                             </div>
                         )}
-                        <div ref={messagesEndRef}></div>
+                        {/* Empty div to ensure scroll area scrolls to the bottom */}
+                        <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
                 <QuizInput
                     input={input}
                     onInputChange={(e) => setInput(e.target.value)}
                     onSubmit={handleSubmit}
+                    // Disable input while waiting for AI response (if isTyping is used for that)
                     isTyping={isTyping}
+                    disabled={!quizId} // Disable if quizId isn't available
                 />
             </div>
         </div>

@@ -1,56 +1,32 @@
-import { useCallback } from "react";
+// src/app/hooks/useUserSync.ts
+import { useCallback, useState } from "react";
 import syncService from "~/services/syncService";
-import quizRepository from "~/db/repositories/quizDexieRepository";
-import chatMessageRepository from "~/db/repositories/chatMessageDexieRepository";
 
 export function useUserSync() {
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncError, setSyncError] = useState<Error | null>(null);
+    const [lastSyncResult, setLastSyncResult] = useState<{
+        uploadedQuizzes: number;
+        uploadedMessages: number;
+        downloadedQuizzes: number;
+        downloadedMessages: number;
+    } | null>(null);
+
     const syncUserData = useCallback(async () => {
-        // --- Upload outstanding local data to Prisma ---
-        // Upload any local quizzes via SyncService.
-        // TODO: Modify upload logic to be handled in sync service on a bulk level
+        setIsSyncing(true);
+        setSyncError(null);
+        setLastSyncResult(null);
         try {
-            const localQuizzes = await quizRepository.getAll();
-            for (const quiz of localQuizzes) {
-                try {
-                    await syncService.syncNewQuiz(quiz);
-                } catch (error) {
-                    console.error(
-                        `Failed to sync quiz with id ${quiz.id}`,
-                        error
-                    );
-                    // Decide here if you want to break or continue to the next item.
-                }
-            }
+            const result = await syncService.performBulkSync();
+            setLastSyncResult(result);
+            console.log("[HOOK] Bulk sync successful:", result);
         } catch (error) {
-            console.error("Error fetching local quizzes:", error);
-        }
-
-        // Upload any local chat messages.
-        try {
-            const localMessages = await chatMessageRepository.getAll();
-            for (const message of localMessages) {
-                try {
-                    await syncService.syncChatMessage(message);
-                } catch (error) {
-                    console.error(
-                        `Failed to sync chat message with id ${message.id}`,
-                        error
-                    );
-                }
-            }
-        } catch (error) {
-            console.error("Error fetching local chat messages:", error);
-        }
-
-        // --- Fetch remote user data (quizzes and messages) from Prisma ---
-        const remoteData = await syncService.fetchUserData();
-        if (remoteData) {
-            const { quizzes, chatMessages } = remoteData;
-            // Update the local Dexie database with the freshest data from Prisma.
-            await quizRepository.bulkCreateOrUpdate(quizzes);
-            await chatMessageRepository.bulkCreateOrUpdate(chatMessages);
+            console.error("[HOOK ERROR] Bulk sync failed:", error);
+            setSyncError(error instanceof Error ? error : new Error("Sync failed"));
+        } finally {
+            setIsSyncing(false);
         }
     }, []);
 
-    return { syncUserData };
+    return { syncUserData, isSyncing, syncError, lastSyncResult };
 }

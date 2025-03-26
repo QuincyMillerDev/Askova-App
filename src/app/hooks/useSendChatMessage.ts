@@ -1,28 +1,38 @@
-// src/hooks/useSendChatMessage.ts
+// src/app/hooks/useSendChatMessage.ts
 import { useSession } from "next-auth/react";
 import { ChatMessageService } from "~/services/chatMessageService";
-import {type ChatMessage} from "~/db/dexie";
-import syncService from "~/services/syncService";
+import { type ChatMessage } from "~/db/dexie";
+import syncService from "~/services/syncService"; // Import the refactored service
 
 export function useSendChatMessage() {
-    const { status } = useSession();
-    const isAuthenticated = status === "authenticated";
+    const { data: session } = useSession();
+    const isAuthenticated = !!session?.user?.id;
 
-    const sendMessage = async (chatMessage: ChatMessage): Promise<void> => {
-        // Save locally
+    // Renamed to avoid conflict with service name
+    const sendMessageAndUpdate = async (
+        chatMessage: ChatMessage
+    ): Promise<void> => {
+        // 1. Save locally first
         await ChatMessageService.addMessage(chatMessage);
 
-        // If authenticated, sync the message remotely.
+        // 2. If authenticated, trigger background sync
         if (isAuthenticated) {
-            try {
-                await syncService.syncChatMessage(chatMessage);
-            } catch (error) {
-                console.error("Failed to sync chat message remotely:", error);
-            }
+            console.log(
+                `[HOOK] User authenticated, attempting background sync for message ${chatMessage.id}`
+            );
+            syncService.uploadChatMessage(chatMessage).catch((error) => {
+                console.error(
+                    `[HOOK ERROR] Background sync failed for message ${chatMessage.id}:`,
+                    error
+                );
+            });
         } else {
-            console.warn("User not authenticated; remote sync skipped.");
+            console.warn(
+                `[HOOK] User not authenticated; remote sync skipped for message ${chatMessage.id}.`
+            );
         }
     };
 
-    return { sendMessage };
+    // Keep original export name if used elsewhere, or update calls
+    return { sendMessageAndUpdate };
 }

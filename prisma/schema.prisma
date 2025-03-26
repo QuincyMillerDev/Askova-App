@@ -63,6 +63,8 @@ model Quiz {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   lastMessageAt DateTime
+
+  @@unique([id, userId])
 }
 
 model ChatMessage {
