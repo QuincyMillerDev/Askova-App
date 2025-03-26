@@ -24,6 +24,18 @@ interface QuizInterfaceProps {
     quizId: string;
 }
 
+interface SseErrorData {
+    message: string;
+}
+
+function isSseErrorData(obj: unknown): obj is SseErrorData {
+    return (
+        typeof obj === "object" &&
+        obj !== null &&
+        true
+    );
+}
+
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false); // Indicates AI is processing/responding
@@ -76,61 +88,112 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
             modelMessageId: string
         ) => {
             let buffer = "";
+
+            // --- Helper to finalize the message ---
+            const finalizeModelMessage = async (status: ChatMessage['status'], contentOverride?: string) => {
+                // Fetch the latest state of the message from Dexie
+                const message = await ChatMessageService.getLocalMessageById(modelMessageId);
+                if (!message) {
+                    console.error(`[SSE Client] Cannot finalize message ${modelMessageId}: Not found in Dexie.`);
+                    return; // Exit if message somehow disappeared
+                }
+
+                // Avoid finalizing if already in a final state (done/error)
+                if (message.status === 'done' || message.status === 'error') {
+                    console.warn(`[SSE Client] Attempted to re-finalize message ${modelMessageId} which is already ${message.status}.`);
+                    return;
+                }
+
+                // Create the final message object
+                const finalMessage: ChatMessage = {
+                    ...message,
+                    status: status, // Set the final status ('done' or 'error')
+                    // Use override content if provided (for errors), otherwise keep accumulated content
+                    content: contentOverride ?? message.content,
+                };
+
+                // Use the hook to save locally and trigger potential remote sync
+                try {
+                    await sendMessageAndUpdate(finalMessage);
+                    console.log(`[SSE Client] Finalized message ${modelMessageId} with status ${status}.`);
+                } catch (error) {
+                    console.error(`[SSE Client] Error finalizing message ${modelMessageId} using sendMessageAndUpdate:`, error);
+                    // Fallback: At least update local status directly if hook fails
+                    await ChatMessageService.updateLocalMessageStatus(modelMessageId, 'error', 'Failed to finalize message state.');
+                }
+            };
+            // --- End Helper ---
+
             try {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) {
                         console.log("[SSE Client] Stream finished.");
-                        await ChatMessageService.updateLocalMessageStatus(
-                            modelMessageId,
-                            "done"
-                        );
-                        break;
+                        // Finalize as 'done' using the helper
+                        await finalizeModelMessage('done');
+                        break; // Exit loop
                     }
 
                     buffer += decoder.decode(value, { stream: true });
 
-                    // Process buffer line by line for SSE messages
                     let boundary = buffer.indexOf("\n\n");
-                    let errorData: unknown;
-                    let chunkText: unknown;
                     while (boundary !== -1) {
                         const message = buffer.substring(0, boundary);
                         buffer = buffer.substring(boundary + 2);
 
                         if (message.startsWith("event: done")) {
                             console.log("[SSE Client] Received done event.");
-                            // Final status update might happen here or after loop finishes
-                            await ChatMessageService.updateLocalMessageStatus(
-                                modelMessageId,
-                                "done"
-                            );
-                            // Optionally break if 'done' event guarantees stream end
-                            // break;
+                            // Finalize as 'done' using the helper
+                            await finalizeModelMessage('done');
+                            // Don't break here, allow stream to close naturally via reader.read()
                         } else if (message.startsWith("event: error")) {
                             const dataLine = message.split("\n").find(l => l.startsWith("data: "));
+                            let displayErrorMessage = "An error occurred while generating the response."; // Default
+
                             if (dataLine) {
                                 const errorJson = dataLine.substring(6);
-                                errorData = JSON.parse(errorJson);
-                                console.error("[SSE Client] Received error event:", errorData);
-                                await ChatMessageService.updateLocalMessageStatus(
-                                    modelMessageId,
-                                    "error",
-                                );
+                                let parsedErrorData: unknown;
+                                try {
+                                    parsedErrorData = JSON.parse(errorJson);
+                                    if (isSseErrorData(parsedErrorData)) {
+                                        console.error("[SSE Client] Received error event:", parsedErrorData);
+                                        if (parsedErrorData.message.includes("SAFETY")) {
+                                            displayErrorMessage = "The response could not be generated due to safety guidelines. Please try rephrasing your input or asking a different question.";
+                                        } else {
+                                            displayErrorMessage = `LLM Error: ${parsedErrorData.message.split(':').slice(-1)[0]?.trim() ?? 'Unknown issue'}`;
+                                        }
+                                    } else {
+                                        console.error("[SSE Client] Received error event with unexpected structure:", parsedErrorData);
+                                        displayErrorMessage = "Received a malformed error from the server.";
+                                    }
+                                } catch (e) {
+                                    console.error("[SSE Client] Error parsing error JSON:", e, errorJson);
+                                    displayErrorMessage = "Failed to understand the error from the server.";
+                                }
+                            } else {
+                                displayErrorMessage = "Received an unspecified error from the server.";
                             }
+
+                            // Finalize as 'error' using the helper, providing the error message
+                            await finalizeModelMessage('error', displayErrorMessage);
                             // Stop processing on error
-                            return;
+                            return; // Exit processStream function
+
                         } else if (message.startsWith("data: ")) {
                             const dataJson = message.substring(6);
+                            let parsedData: unknown;
                             try {
-                                chunkText = JSON.parse(dataJson);
-                                if (typeof chunkText === "string") {
-                                    // Append content chunk
+                                parsedData = JSON.parse(dataJson);
+                                if (typeof parsedData === "string") {
+                                    const chunkText = parsedData;
+                                    // Still use ChatMessageService for intermediate appends
                                     await ChatMessageService.appendLocalMessageContent(
                                         modelMessageId,
                                         "streaming",
                                         chunkText
                                     );
+                                } else {
+                                    console.warn("[SSE Client] Received non-string data chunk:", parsedData);
                                 }
                             } catch (e) {
                                 console.error("[SSE Client] Error parsing data JSON:", e, dataJson);
@@ -141,23 +204,23 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                 }
             } catch (error) {
                 // Handle fetch errors or unexpected stream closure
+                let errorMsg = "Stream reading failed";
                 if ((error as Error).name === 'AbortError') {
                     console.log("[SSE Client] Stream fetch aborted.");
-                    // Optionally update status to 'cancelled' or just leave as is
-                    await ChatMessageService.updateLocalMessageStatus(modelMessageId, "error");
+                    errorMsg = "Stream cancelled";
                 } else {
                     console.error("[SSE Client] Error reading stream:", error);
-                    await ChatMessageService.updateLocalMessageStatus(
-                        modelMessageId,
-                        "error",
-                    );
                 }
+                // Finalize as 'error' on unexpected catch
+                await finalizeModelMessage('error', errorMsg);
+
             } finally {
                 reader.releaseLock();
                 setIsTyping(false); // Ensure typing indicator stops
             }
         },
-        [] // No dependencies needed for the function logic itself
+        // Add sendMessageAndUpdate to dependency array
+        [sendMessageAndUpdate]
     );
 
     // --- Handle Form Submission ---

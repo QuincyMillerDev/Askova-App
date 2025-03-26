@@ -37,8 +37,6 @@ const model = genAI.getGenerativeModel({
 // --- Change GET to POST ---
 export async function POST(req: NextRequest) {
     try {
-
-
         // --- Get Data from Request Body ---
         let requestBody: unknown;
         try {
@@ -59,10 +57,6 @@ export async function POST(req: NextRequest) {
         }
         const { history, latestUserMessageContent } = parseResult.data;
         // const quizId = parseResult.data.quizId; // Optional for logging
-
-        // --- Remove Prisma Fetch & Authorization ---
-        // const quiz = await db.quiz.findUnique(...)
-        // if (!quiz) { ... }
 
         // --- Format History for Gemini (from request body) ---
         const formattedHistory: Content[] = history.map((msg) => ({
@@ -139,8 +133,3 @@ export async function POST(req: NextRequest) {
         return new NextResponse("Internal Server Error", { status: 500 });
     }
 }
-
-// Optional: Add a simple GET handler if needed for health checks, etc.
-// export async function GET() {
-//   return new NextResponse("SSE endpoint is POST only.", { status: 405 });
-// }
