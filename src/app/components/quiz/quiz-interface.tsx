@@ -2,18 +2,18 @@
 "use client";
 
 import React, {
-    useState,
-    useRef,
-    useEffect,
-    useMemo,
-    type FormEvent,
-    useCallback,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { db, type ChatMessage } from "~/db/dexie";
+import { type ChatMessage, db } from "~/db/dexie";
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
@@ -174,10 +174,9 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                                 displayErrorMessage = "Received an unspecified error from the server.";
                             }
 
-                            // Finalize as 'error' using the helper, providing the error message
                             await finalizeModelMessage('error', displayErrorMessage);
                             // Stop processing on error
-                            return; // Exit processStream function
+                            return;
 
                         } else if (message.startsWith("data: ")) {
                             const dataJson = message.substring(6);
@@ -185,13 +184,11 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                             try {
                                 parsedData = JSON.parse(dataJson);
                                 if (typeof parsedData === "string") {
-                                    const chunkText = parsedData;
-                                    // Still use ChatMessageService for intermediate appends
-                                    await ChatMessageService.appendLocalMessageContent(
-                                        modelMessageId,
-                                        "streaming",
-                                        chunkText
-                                    );
+                                  await ChatMessageService.appendLocalMessageContent(
+                                    modelMessageId,
+                                    "streaming",
+                                    parsedData,
+                                  );
                                 } else {
                                     console.warn("[SSE Client] Received non-string data chunk:", parsedData);
                                 }
@@ -342,8 +339,6 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                 setIsTyping(false);
             }
         }
-        // No finally block needed here for setIsTyping, as processStream handles it
-        // and the non-OK path also sets it to false before returning.
     };
 
     return (
