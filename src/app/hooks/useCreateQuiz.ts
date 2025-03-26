@@ -27,8 +27,8 @@ export function useCreateQuiz() {
                 // Use a Dexie transaction to ensure both are saved or neither is.
                 await db.transaction("rw", db.quizzes, db.chatMessages, async () => {
                     // These services use the underlying repositories which use db.quizzes.put etc.
-                    await QuizService.createQuiz(quizData);
-                    await ChatMessageService.addMessage(firstMessageData); // This also updates quiz timestamps locally
+                    await QuizService.createOrUpdateQuiz(quizData);
+                    await ChatMessageService.addOrUpdateLocalMessage(firstMessageData); // This also updates quiz timestamps locally
                 });
                 console.log(
                     `[HOOK] Locally saved quiz ${quizData.id} and message ${firstMessageData.id}`

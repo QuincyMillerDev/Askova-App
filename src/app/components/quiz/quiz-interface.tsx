@@ -1,4 +1,4 @@
-// src/app/components/quiz-interface.tsx
+// src/app/components/quiz/quiz-interface.tsx
 "use client";
 
 import React, {
@@ -7,129 +7,315 @@ import React, {
     useEffect,
     useMemo,
     type FormEvent,
+    useCallback,
 } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "~/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { db, type ChatMessage } from "~/db/dexie"; // Import ChatMessage type from dexie
+import { db, type ChatMessage } from "~/db/dexie";
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
-import { v4 as uuidv4 } from "uuid"; // Import uuid
+import { useSendChatMessage } from "~/app/hooks/useSendChatMessage"; // For user message sync
+import { v4 as uuidv4 } from "uuid";
+import { api } from "~/trpc/react";
+import { ChatMessageService } from "~/services/chatMessageService";
+import { QuizService } from "~/services/quizService";
+import syncService from "~/services/syncService";
 
 interface QuizInterfaceProps {
     quizId: string;
 }
 
+// No longer need TRPCSubscription type or currentSubscription ref
+
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
-    // isTyping might be repurposed later for actual AI response indication
-    const [isTyping, setIsTyping] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    // Use the correct function name from the hook
+
+    // --- State for triggering the subscription ---
+    const [subscriptionInput, setSubscriptionInput] = useState<{
+        quizId: string;
+        latestUserMessageContent: string;
+    } | null>(null);
+    const [shouldSubscribe, setShouldSubscribe] = useState(false);
+    const currentAiMessageIdRef = useRef<string | null>(null); // Ref to hold the ID for the current stream
+
+    // Hook for saving user message locally + triggering background sync
     const { sendMessageAndUpdate } = useSendChatMessage();
 
-    // Use Dexie Live Query to always read all messages for this session.
-    // Ensure the query fetches messages ordered by creation time for display
+    // Live query for messages
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () =>
             db.chatMessages
                 .where("quizId")
                 .equals(quizId)
-                .sortBy("createdAt"), // Sort by createdAt
-        [quizId] // Dependency array includes quizId
+                .sortBy("createdAt"),
+        [quizId],
+        [] // Initial empty array
     );
 
-    // Memoize localMessages based on liveMessages
-    const localMessages: ChatMessage[] = useMemo(
-        () => liveMessages ?? [],
-        [liveMessages]
-    );
+    // Memoize localMessages and determine if AI is processing
+    const { localMessages, isAiProcessing } = useMemo(() => {
+        const messages = liveMessages ?? [];
+        // Check for 'waiting' or 'streaming' status specifically for the *model* role
+        const processing = messages.some(
+            (m) =>
+                m.role === "model" &&
+                (m.status === "waiting" || m.status === "streaming")
+        );
+        return { localMessages: messages, isAiProcessing: processing };
+    }, [liveMessages]);
 
-    // Trigger a fade-in transition when quizId changes.
+    // Fade-in effect
     useEffect(() => {
         setIsLoaded(false);
-        const timer = setTimeout(() => {
-            setIsLoaded(true);
-        }, 50); // small delay to trigger the transition
+        const timer = setTimeout(() => setIsLoaded(true), 50);
         return () => clearTimeout(timer);
     }, [quizId]);
 
-    // Auto-scroll when messages update.
+    // Auto-scroll effect
     useEffect(() => {
-        // Scroll to bottom when new messages are added or component loads
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [localMessages]); // Trigger scroll on message changes
 
-    const handleSubmit = async (e: FormEvent) => {
-        e.preventDefault();
-        const trimmedInput = input.trim();
-        if (!trimmedInput || !quizId) return; // Ensure quizId is also present
+    // --- tRPC Subscription Hook ---
+    api.llm.generateResponseStream.useSubscription(
+        subscriptionInput ?? { quizId: "", latestUserMessageContent: "" },
+        {
+            enabled: shouldSubscribe && !!subscriptionInput,
+            onData: (chunk) => {
+                // Wrap async logic in an IIFE
+                (async () => {
+                    const aiMessageId = currentAiMessageIdRef.current;
+                    if (!aiMessageId) {
+                        console.warn(
+                            "[useSubscription onData IIFE] No active AI message ID."
+                        );
+                        return;
+                    }
+                    // console.log("Stream chunk:", chunk);
+                    try {
+                        // Append content and update status to streaming
+                        await ChatMessageService.appendLocalMessageContent(
+                            aiMessageId,
+                            "streaming",
+                            chunk
+                        );
+                        // Update quiz status locally
+                        await QuizService.updateLocalQuizStatus(
+                            quizId,
+                            "waiting"
+                        );
+                    } catch (error) {
+                        // Handle errors specifically from the async operations
+                        console.error(
+                            "[useSubscription onData IIFE] Error handling stream data:",
+                            error
+                        );
+                        // Optionally update status to error here if needed,
+                        // though onError might handle the overall stream failure.
+                    }
+                })().catch((err) => {
+                    // Catch errors from the IIFE promise itself (e.g., if the function setup fails)
+                    // This is less likely but good practice.
+                    console.error(
+                        "[useSubscription onData IIFE] Uncaught error:",
+                        err
+                    );
+                });
+            },
+            onComplete: () => {
+                // Wrap async logic in an IIFE
+                (async () => {
+                    console.log("[useSubscription] Stream complete.");
+                    const aiMessageId = currentAiMessageIdRef.current;
+                    if (!aiMessageId) {
+                        console.warn(
+                            "[useSubscription onComplete IIFE] No active AI message ID."
+                        );
+                        // Ensure cleanup happens even if ID is missing somehow
+                        setShouldSubscribe(false);
+                        setSubscriptionInput(null);
+                        currentAiMessageIdRef.current = null;
+                        return;
+                    }
+                    try {
+                        // Final status update for AI message
+                        await ChatMessageService.updateLocalMessageStatus(
+                            aiMessageId,
+                            "done"
+                        );
+                        // Update quiz status locally
+                        await QuizService.updateLocalQuizStatus(quizId, "done");
 
-        // Generate a unique ID for the new message
-        const messageId = uuidv4();
-
-        // Create a new user message conforming to the Dexie ChatMessage type
-        const userMessage: ChatMessage = {
-            id: messageId,
-            quizId: quizId,
-            role: "user",
-            content: trimmedInput,
-            createdAt: new Date(),
-            status: "done", // Set initial status (can be updated later for streaming/sync)
-        };
-
-        // Clear input immediately for better UX
-        setInput("");
-
-        try {
-            // Call the hook function to save locally and trigger background sync
-            await sendMessageAndUpdate(userMessage);
-
-            // --- Placeholder for AI Interaction ---
-            // TODO: Replace this section with actual AI call
-            // 1. Set isTyping(true)
-            // 2. Make API call to your LLM endpoint (passing userMessage.content, quizId, history etc.)
-            // 3. Handle streaming response:
-            //    - Create a placeholder model message locally (e.g., status: 'waiting' or 'streaming')
-            //    - Update the placeholder message content as chunks arrive
-            //    - Update status to 'done' when streaming finishes
-            // 4. Handle non-streaming response:
-            //    - Create the model message locally once response is received (status: 'done')
-            // 5. Call `sendMessage` for the model's response to save it locally and sync
-            // 6. Set isTyping(false)
-            // Example (Conceptual - Non-streaming):
-            /*
-                  setIsTyping(true);
-                  // Simulate API call delay
-                  await new Promise(resolve => setTimeout(resolve, 1500));
-                  const modelResponse: ChatMessage = {
-                      id: uuidv4(),
-                      quizId: quizId,
-                      role: "model",
-                      content: `AI response to: "${trimmedInput}"`,
-                      createdAt: new Date(),
-                      status: "done",
-                  };
-                  await sendMessage(modelResponse);
-                  setIsTyping(false);
-                  */
-            // --- End Placeholder ---
-        } catch (error) {
-            console.error("Error sending message:", error);
-            // TODO: Provide user feedback about the error
-            // Maybe add the message back to the input?
-            // setInput(trimmedInput); // Or display an error message component
+                        // Fetch the final message to sync
+                        const finalAiMessage =
+                            await ChatMessageService.getLocalMessageById(
+                                aiMessageId
+                            );
+                        if (finalAiMessage) {
+                            // Sync the *completed* AI message to backend
+                            // Fire-and-forget sync, but catch errors
+                            syncService
+                                .uploadChatMessage(finalAiMessage)
+                                .catch((err) => {
+                                    console.error(
+                                        `[useSubscription onComplete IIFE] Failed to sync completed AI message ${aiMessageId}:`,
+                                        err
+                                    );
+                                });
+                        } else {
+                            console.warn(
+                                `[useSubscription onComplete IIFE] Could not find final AI message ${aiMessageId} to sync.`
+                            );
+                        }
+                    } catch (error) {
+                        console.error(
+                            "[useSubscription onComplete IIFE] Error handling stream completion:",
+                            error
+                        );
+                    } finally {
+                        // Cleanup happens regardless of success/error within the try block
+                        setShouldSubscribe(false);
+                        setSubscriptionInput(null);
+                        currentAiMessageIdRef.current = null;
+                    }
+                })().catch((err) => {
+                    console.error(
+                        "[useSubscription onComplete IIFE] Uncaught error:",
+                        err
+                    );
+                    // Ensure cleanup happens even if the IIFE itself fails
+                    setShouldSubscribe(false);
+                    setSubscriptionInput(null);
+                    currentAiMessageIdRef.current = null;
+                });
+            },
+            onError: (err) => {
+                // Wrap async logic in an IIFE
+                (async () => {
+                    console.error("[useSubscription] Stream error:", err);
+                    const aiMessageId = currentAiMessageIdRef.current;
+                    if (!aiMessageId) {
+                        console.warn(
+                            "[useSubscription onError IIFE] No active AI message ID."
+                        );
+                        // Ensure cleanup happens even if ID is missing somehow
+                        setShouldSubscribe(false);
+                        setSubscriptionInput(null);
+                        currentAiMessageIdRef.current = null;
+                        return;
+                    }
+                    try {
+                        // Update local AI message status and content with error
+                        await ChatMessageService.updateLocalMessageStatus(
+                            aiMessageId,
+                            "error",
+                            `Error generating response: ${err.message}`
+                        );
+                        // Update quiz status locally
+                        await QuizService.updateLocalQuizStatus(quizId, "error");
+                    } catch (error) {
+                        console.error(
+                            "[useSubscription onError IIFE] Error handling stream error state:",
+                            error
+                        );
+                    } finally {
+                        // Cleanup happens regardless of success/error within the try block
+                        setShouldSubscribe(false);
+                        setSubscriptionInput(null);
+                        currentAiMessageIdRef.current = null;
+                    }
+                })().catch((iifeErr) => {
+                    console.error(
+                        "[useSubscription onError IIFE] Uncaught error:",
+                        iifeErr
+                    );
+                    // Ensure cleanup happens even if the IIFE itself fails
+                    setShouldSubscribe(false);
+                    setSubscriptionInput(null);
+                    currentAiMessageIdRef.current = null;
+                });
+            },
         }
-    };
+    );
 
+    const handleSubmit = useCallback(
+        async (e: FormEvent) => {
+            e.preventDefault();
+            const trimmedInput = input.trim();
+            // Prevent sending if AI is busy, no input, or already trying to subscribe
+            if (!trimmedInput || !quizId || isAiProcessing || shouldSubscribe)
+                return;
+
+            // --- 1. Save User Message ---
+            const userMessageId = uuidv4();
+            const userMessage: ChatMessage = {
+                id: userMessageId,
+                quizId: quizId,
+                role: "user",
+                content: trimmedInput,
+                createdAt: new Date(),
+                status: "done",
+            };
+            setInput(""); // Clear input immediately
+
+            try {
+                await sendMessageAndUpdate(userMessage); // Save locally & trigger background sync
+            } catch (error) {
+                console.error("Error saving user message:", error);
+                setInput(trimmedInput); // Restore input on error
+                // TODO: Show user-facing error
+                return;
+            }
+
+            // --- 2. Create AI Placeholder & Update Quiz Status ---
+            const aiMessageId = uuidv4();
+            currentAiMessageIdRef.current = aiMessageId; // Store the ID for the subscription callbacks
+            const aiPlaceholderMessage: ChatMessage = {
+                id: aiMessageId,
+                quizId: quizId,
+                role: "model",
+                content: "", // Start empty
+                createdAt: new Date(), // Use current time
+                status: "waiting",
+            };
+
+            try {
+                // Save placeholder locally (DOES NOT SYNC YET)
+                await ChatMessageService.addOrUpdateLocalMessage(aiPlaceholderMessage);
+                // Update quiz status locally
+                await QuizService.updateLocalQuizStatus(quizId, "waiting");
+            } catch (error) {
+                console.error(
+                    "Error creating AI placeholder/updating quiz status:",
+                    error
+                );
+                currentAiMessageIdRef.current = null; // Clear ref on error
+                // TODO: Show user-facing error, maybe delete placeholder?
+                return;
+            }
+
+            // --- 3. Trigger the tRPC Subscription Hook ---
+            console.log(
+                `[QuizInterface] Triggering subscription for quiz ${quizId}`
+            );
+            setSubscriptionInput({
+                quizId: quizId,
+                latestUserMessageContent: trimmedInput,
+            });
+            setShouldSubscribe(true); // This will enable the useSubscription hook on the next render
+        },
+        [quizId, input, isAiProcessing, sendMessageAndUpdate, shouldSubscribe] // Add shouldSubscribe dependency
+    );
+
+    // --- Rendering Logic (No changes needed below this line) ---
     return (
         <div className="flex h-full w-full">
             <div className="flex-1 relative w-full">
                 <ScrollArea className="h-full w-full">
-                    {/* The content container transitions opacity over 300ms */}
                     <div
                         className={cn(
                             "mx-auto max-w-4xl space-y-4 p-4 pb-36 transition-opacity duration-150",
@@ -138,44 +324,54 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                     >
                         {localMessages.map((message) => (
                             <div
-                                // Use message.id which is now a UUID string
-                                key={message.id}
+                                key={message.id} // Use unique ID
                                 className={`flex ${
-                                    message.role === "user" ? "justify-end" : "justify-start"
+                                    message.role === "user"
+                                        ? "justify-end"
+                                        : "justify-start"
                                 }`}
                             >
                                 <div
                                     className={cn(
-                                        "max-w-[85%] rounded-lg p-3 md:p-4", // Adjusted padding slightly
+                                        "max-w-[85%] rounded-lg p-3 md:p-4 shadow-sm",
                                         message.role === "user"
                                             ? "bg-primary text-primary-foreground"
-                                            : "bg-muted text-muted-foreground", // Use muted for model messages
-                                        "shadow-sm" // Add subtle shadow
+                                            : "bg-muted text-muted-foreground",
+                                        // Add visual cues for message status
+                                        message.status === "error" &&
+                                        "border border-destructive bg-destructive/10 text-destructive-foreground",
+                                        (message.status === "waiting" ||
+                                            message.status === "streaming") &&
+                                        "opacity-80" // Slight fade while processing
                                     )}
-                                    style={{ overflowWrap: "break-word" }} // Use break-word for better wrapping
+                                    style={{ overflowWrap: "break-word" }}
                                 >
-                                    {/* Apply markdown styling defined in globals.css */}
+                                    {/* Render Markdown Content */}
                                     <div className="markdown">
                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                             {message.content}
                                         </ReactMarkdown>
                                     </div>
+                                    {/* Optional: Add explicit status indicators */}
+                                    {(message.status === "waiting" ||
+                                            message.status === "streaming") &&
+                                        message.role === "model" && (
+                                            <div className="mt-2 flex justify-center">
+                                                <div className="h-2 w-2 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.3s]" />
+                                                <div className="ml-1 h-2 w-2 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.15s]" />
+                                                <div className="ml-1 h-2 w-2 animate-bounce rounded-full bg-current opacity-60" />
+                                            </div>
+                                        )}
+                                    {message.status === "error" &&
+                                        message.role === "model" && (
+                                            <p className="mt-1 text-xs text-destructive">
+                                                Failed to generate response.
+                                            </p>
+                                        )}
                                 </div>
                             </div>
                         ))}
-                        {/* Typing indicator can be used for actual AI response generation */}
-                        {isTyping && (
-                            <div className="flex justify-start">
-                                <div className="max-w-[80%] rounded-lg p-4 bg-muted">
-                                    <div className="flex space-x-2">
-                                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* Empty div to ensure scroll area scrolls to the bottom */}
+                        {/* Empty div for scrolling */}
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
@@ -183,9 +379,8 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                     input={input}
                     onInputChange={(e) => setInput(e.target.value)}
                     onSubmit={handleSubmit}
-                    // Disable input while waiting for AI response (if isTyping is used for that)
-                    isTyping={isTyping}
-                    disabled={!quizId} // Disable if quizId isn't available
+                    isTyping={isAiProcessing} // Use isAiProcessing to indicate busy state
+                    disabled={!quizId || isAiProcessing || shouldSubscribe} // Also disable while trying to subscribe
                 />
             </div>
         </div>

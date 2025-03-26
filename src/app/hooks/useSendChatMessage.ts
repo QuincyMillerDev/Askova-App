@@ -13,7 +13,7 @@ export function useSendChatMessage() {
         chatMessage: ChatMessage
     ): Promise<void> => {
         // 1. Save locally first
-        await ChatMessageService.addMessage(chatMessage);
+        await ChatMessageService.addOrUpdateLocalMessage(chatMessage);
 
         // 2. If authenticated, trigger background sync
         if (isAuthenticated) {

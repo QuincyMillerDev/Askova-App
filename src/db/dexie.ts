@@ -46,6 +46,7 @@ export class askovadb extends Dexie {
         // this.chatMessages.mapToClass(ChatMessage); // Map if you have a ChatMessage class
     }
 
+    // TODO: Add some protection/error handling here
     /**
      * Clears all tables in the database within a transaction.
      */
