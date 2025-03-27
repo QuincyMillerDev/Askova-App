@@ -1,7 +1,7 @@
 // src/server/api/routers/chatMessage.ts
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { TRPCError } from "@trpc/server"; // Import TRPCError
+import { TRPCError } from "@trpc/server";
 
 // --- Schemas ---
 
@@ -24,24 +24,6 @@ const mappedChatMessageOutputSchema = z.object({
     status: z.literal("done"), // Add status field required by Dexie type
 });
 
-// Other existing schemas (add, update, delete, getById, getByQuiz) remain the same
-const addChatMessageSchema = z.object({
-    id: z.string(),
-    quizId: z.string(),
-    role: z.enum(["user", "model"]),
-    content: z.string(),
-    createdAt: z.date(),
-});
-const updateChatMessageSchema = z.object({
-    id: z.string(),
-    content: z.string().optional(),
-});
-const deleteChatMessageSchema = z.object({
-    id: z.string(),
-});
-const getChatMessageByIdSchema = z.object({
-    id: z.string(),
-});
 const getChatMessagesByQuizSchema = z.object({
     quizId: z.string(),
 });
@@ -123,63 +105,6 @@ export const chatMessageRouter = createTRPCRouter({
             }));
         }),
 
-    // --- Other procedures (add, getById, getByQuiz, update, delete) ---
-    // These might become less relevant if 'upsert' handles most client->server sync.
-    // 'add' could potentially be replaced by 'upsert'.
-    // 'update' might still be useful for specific partial updates initiated from UI.
-
-    // TODO: Consider replacing legacy procedures with upsert
-    // CREATE (Legacy? Consider replacing with upsert call from client)
-    add: protectedProcedure
-        .input(addChatMessageSchema)
-        .mutation(async ({ ctx, input }) => {
-            // ... existing implementation ...
-            // Add the same authorization check as in upsert before creating
-            const userId = ctx.session.user.id;
-            const quiz = await ctx.db.quiz.findUnique({
-                where: { id_userId: { id: input.quizId, userId: userId } },
-                select: { userId: true },
-            });
-            if (!quiz) {
-                throw new TRPCError({
-                    code: "FORBIDDEN",
-                    message: "Quiz not found or user does not have access.",
-                });
-            }
-            return await ctx.db.chatMessage.create({
-                data: {
-                    id: input.id,
-                    quizId: input.quizId,
-                    userId: userId,
-                    role: input.role,
-                    content: input.content,
-                    createdAt: input.createdAt,
-                },
-            });
-        }),
-
-    // READ: Retrieve a single chat message by its ID
-    getById: protectedProcedure
-        .input(getChatMessageByIdSchema)
-        .output(mappedChatMessageOutputSchema.nullable()) // Use updated output schema
-        .query(async ({ ctx, input }) => {
-            const userId = ctx.session.user.id;
-            const msg = await ctx.db.chatMessage.findUnique({
-                where: { id: input.id },
-            });
-            // Authorization check: Ensure the message belongs to the user
-            if (!msg || msg.userId !== userId) return null;
-
-            return {
-                id: msg.id,
-                quizId: msg.quizId,
-                role: msg.role as "user" | "model",
-                content: msg.content,
-                createdAt: msg.createdAt,
-                status: "done", // Add status
-            };
-        }),
-
     // READ: Retrieve all chat messages for a specific quiz session
     getByQuiz: protectedProcedure
         .input(getChatMessagesByQuizSchema)
@@ -209,58 +134,5 @@ export const chatMessageRouter = createTRPCRouter({
                 createdAt: msg.createdAt,
                 status: "done", // Add status
             }));
-        }),
-
-    // UPDATE: Update properties of a chat message
-    update: protectedProcedure
-        .input(updateChatMessageSchema)
-        .mutation(async ({ ctx, input }) => {
-            const userId = ctx.session.user.id;
-            // Authorization check: Find the message first to check ownership
-            const message = await ctx.db.chatMessage.findUnique({
-                where: { id: input.id },
-                select: { userId: true },
-            });
-            if (!message || message.userId !== userId) {
-                throw new TRPCError({
-                    code: "FORBIDDEN",
-                    message: "Message not found or user does not have access.",
-                });
-            }
-
-            const dataToUpdate: { content?: string } = {};
-            if (input.content !== undefined) {
-                dataToUpdate.content = input.content;
-            }
-            // Only update if there's something to update
-            if (Object.keys(dataToUpdate).length === 0) {
-                return message; // Or return the existing message data
-            }
-            return await ctx.db.chatMessage.update({
-                where: { id: input.id /* userId: userId */ }, // userId check redundant
-                data: dataToUpdate,
-            });
-        }),
-
-    // DELETE: Delete a chat message by its ID
-    delete: protectedProcedure
-        .input(deleteChatMessageSchema)
-        .mutation(async ({ ctx, input }) => {
-            const userId = ctx.session.user.id;
-            // Authorization check
-            const message = await ctx.db.chatMessage.findUnique({
-                where: { id: input.id },
-                select: { userId: true },
-            });
-            if (!message || message.userId !== userId) {
-                throw new TRPCError({
-                    code: "FORBIDDEN",
-                    message: "Message not found or user does not have access.",
-                });
-            }
-            await ctx.db.chatMessage.delete({
-                where: { id: input.id /* userId: userId */ }, // userId check redundant
-            });
-            return { success: true };
         }),
 });

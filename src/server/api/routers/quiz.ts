@@ -5,7 +5,6 @@ import { TRPCError } from "@trpc/server"; // Import TRPCError
 
 // --- Schemas ---
 
-// Input schema for upsert (matches DexieQuiz shape, excluding 'messages' and 'status')
 const upsertQuizSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -24,34 +23,19 @@ const mappedChatMessageOutputSchema = z.object({
     status: z.literal("done"), // Add status field required by Dexie type
 });
 
-// Zod output schema for a mapped Quiz (matches DexieQuiz shape)
-// IMPORTANT: Exclude 'messages' here if they are synced separately via chatMessage router
-// Including them can be very inefficient for bulk sync.
 const mappedQuizOutputSchema = z.object({
     id: z.string(),
     title: z.string(),
-    // userId: z.string(), // userId is implicit for getByUser, maybe not needed in output?
     createdAt: z.date(),
     updatedAt: z.date(),
     lastMessageAt: z.date(),
     status: z.literal("done"), // Add status field required by Dexie type
-    // messages: z.array(mappedChatMessageOutputSchema), // <-- REMOVE or make optional for bulk sync efficiency
 });
 
-// Schema for fetching a single quiz WITH messages (for specific page load)
 const mappedQuizWithMessagesOutputSchema = mappedQuizOutputSchema.extend({
     messages: z.array(mappedChatMessageOutputSchema),
 });
 
-// Other existing schemas (create, update, delete) remain the same
-const createQuizSchema = z.object({
-    id: z.string(),
-    title: z.string(),
-    // userId: z.string().optional(), // Not needed, always use session
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    lastMessageAt: z.date(),
-});
 const updateQuizSchema = z.object({
     id: z.string(),
     title: z.string().optional(),
@@ -165,34 +149,6 @@ export const quizRouter = createTRPCRouter({
         }),
 
     // --- Other procedures (create, update, delete) ---
-    // Consider if 'create' and 'update' are still needed or if 'upsert' covers the use cases.
-    // TODO: Consider replacing legacy procedures with upsert
-    // CREATE (Legacy? Consider replacing with upsert call from client)
-    create: protectedProcedure
-        .input(createQuizSchema)
-        .mutation(async ({ ctx, input }) => {
-            const userId = ctx.session.user.id;
-            // Use create, but Prisma will throw error if id_userId constraint is violated
-            try {
-                return await ctx.db.quiz.create({
-                    data: {
-                        id: input.id,
-                        title: input.title,
-                        userId: userId,
-                        createdAt: input.createdAt,
-                        updatedAt: input.updatedAt,
-                        lastMessageAt: input.lastMessageAt,
-                    },
-                });
-            } catch (error) {
-                // Handle potential unique constraint violation if needed
-                console.error("Quiz creation failed:", error);
-                throw new TRPCError({
-                    code: "CONFLICT",
-                    message: "Quiz with this ID might already exist for the user.",
-                });
-            }
-        }),
 
     // UPDATE: Update properties of a quiz.
     update: protectedProcedure
