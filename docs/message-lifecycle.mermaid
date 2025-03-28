@@ -1,0 +1,77 @@
+sequenceDiagram
+    participant User
+    participant QuizInterface as FE Comp
+    participant useSendChatMsg as FE UserMsgHook
+    participant ChatMsgService as Local Chat Svc
+    participant QuizService as Local Quiz Svc
+    participant DexieDB as Local DB
+    participant useLlmStream as FE LLM Hook
+    participant LLMRoute as BE LLM Route
+    participant GoogleAI as LLM Service
+    participant SyncService as BE Sync Svc / tRPC Client
+    participant TRPCRouter as BE API
+    participant PrismaDB as Server DB
+
+%% 1. User Sends Message
+    User->>FE Comp: Types and submits message
+    FE Comp->>FE Comp: Creates User ChatMessage object
+
+%% 2. Save User Message Locally
+    FE Comp->>useSendChatMsg: sendMessageAndUpdate UserMsg
+    useSendChatMsg->>Local Chat Svc: addOrUpdateLocalMessage UserMsg
+    Local Chat Svc->>DexieDB: Put UserMsg
+    Local Chat Svc->>Local Quiz Svc: Update Quiz Timestamps QuizID
+    Local Quiz Svc->>DexieDB: Update Quiz timestamps
+
+%% 3. Trigger User Message Background Sync (Optional/Authenticated)
+    opt If Authenticated
+        useSendChatMsg-->>SyncService: uploadChatMessage UserMsg
+        SyncService-->>TRPCRouter: chatMessage.upsert UserMsg
+        TRPCRouter-->>PrismaDB: Upsert UserMsg
+        PrismaDB-->>TRPCRouter: Success/Failure
+        TRPCRouter-->>SyncService: Success/Failure
+    end
+
+%% 4. Trigger LLM Response
+    FE Comp->>FE LLM Hook: startStream payload, aiMsgPlaceholderId
+    Note over FE Comp, FE LLM Hook: FE Comp creates AI Msg placeholder in DexieDB via Local Chat Svc first
+
+%% 5. LLM Streaming Process
+    FE LLM Hook->>LLMRoute: POST Request history, latestMsg
+    LLMRoute->>GoogleAI: Start Chat & Send Message Stream
+
+    loop Stream Chunks
+        GoogleAI-->>LLMRoute: Text Chunk
+        LLMRoute-->>FE LLM Hook: SSE data: "chunk"
+        FE LLM Hook->>FE Comp: onChunkReceived aiMsgPlaceholderId, "chunk"
+        FE Comp->>Local Chat Svc: appendLocalMessageContent aiMsgPlaceholderId, "chunk"
+        Local Chat Svc->>DexieDB: Modify AI Msg content
+    end
+
+%% 6. LLM Stream Completion
+    GoogleAI-->>LLMRoute: Stream End Signal
+    LLMRoute-->>FE LLM Hook: SSE event: done
+    FE LLM Hook->>FE Comp: onStreamComplete aiMsgPlaceholderId
+    FE Comp->>Local Chat Svc: updateLocalMessageStatus aiMsgPlaceholderId, 'done'
+    Local Chat Svc->>DexieDB: Update AI Msg status to 'done'
+    Note right of FE Comp: AI Message is now complete locally
+
+%% 7. Trigger AI Message Background Sync (Optional/Authenticated)
+    opt If Authenticated
+        FE Comp-->>SyncService: uploadChatMessage CompletedAIMsg
+        Note right of FE Comp: Triggered after onStreamComplete
+        SyncService-->>TRPCRouter: chatMessage.upsert CompletedAIMsg
+        TRPCRouter-->>PrismaDB: Upsert CompletedAIMsg
+        PrismaDB-->>TRPCRouter: Success/Failure
+        TRPCRouter-->>SyncService: Success/Failure
+    end
+
+%% Alternative: Error during Streaming
+    alt On LLM Stream Error
+        GoogleAI-->>LLMRoute: Error Signal
+        LLMRoute-->>FE LLM Hook: SSE event: error / data: {error}
+        FE LLM Hook->>FE Comp: onStreamError aiMsgPlaceholderId, errorMsg
+        FE Comp->>Local Chat Svc: updateLocalMessageStatus aiMsgPlaceholderId, 'error', errorMsg
+        Local Chat Svc->>DexieDB: Update AI Msg status/content to 'error'
+        Note right of FE Comp: Error state saved locally, sync might not occur or syncs error state later
+    end

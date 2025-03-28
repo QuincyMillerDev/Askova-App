@@ -1,0 +1,23 @@
+graph TD
+subgraph "User Browser"
+User[User] --> BrowserClient[Next.js Frontend React Components, Hooks, Dexie]
+end
+
+subgraph "Server Infrastructure"
+NextServer[Next.js Backend API Routes, tRPC]
+PrismaDB[(PostgreSQL Database)]
+GoogleAI[Google Generative AI Service]
+end
+
+BrowserClient -- HTTP/tRPC Requests --> NextServer
+BrowserClient -- SSE Request --> NextServer
+NextServer -- Database Queries Prisma --> PrismaDB
+NextServer -- LLM API Calls --> GoogleAI
+GoogleAI -- LLM Responses --> NextServer
+NextServer -- API Responses/SSE Stream --> BrowserClient
+
+style User fill:#f9f,stroke:#333,stroke-width:2px
+style BrowserClient fill:#ccf,stroke:#333,stroke-width:2px
+style NextServer fill:#cfc,stroke:#333,stroke-width:2px
+style PrismaDB fill:#fcc,stroke:#333,stroke-width:2px
+style GoogleAI fill:#ffc,stroke:#333,stroke-width:2px

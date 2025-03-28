@@ -1,0 +1,38 @@
+sequenceDiagram
+    participant User
+    participant QuizInterface as FE Comp
+    participant useLlmStream as FE Hook
+    participant LLMRoute as BE Route /api/llm-stream
+    participant GoogleAI as LLM Service
+
+    User->>FE Comp: Enters message & Submits
+    FE Comp->>FE Comp: Creates User Message Local Dexie
+    FE Comp->>FE Hook: startStream payload, modelMsgId
+    FE Hook->>LLMRoute: POST Request history, latestMsg
+    LLMRoute->>GoogleAI: Start Chat & Send Message Stream
+    Note right of LLMRoute: Handles Auth Implicitly via Next.js
+
+    loop Stream Chunks
+        GoogleAI-->>LLMRoute: Text Chunk
+        LLMRoute-->>FE Hook: SSE data: "chunk"
+        FE Hook->>FE Comp: onChunkReceived modelMsgId, "chunk"
+        FE Comp->>FE Comp: Append Chunk to Model Message Local Dexie
+    end
+
+    GoogleAI-->>LLMRoute: Stream End Signal
+    LLMRoute-->>FE Hook: SSE event: done
+    FE Hook->>FE Comp: onStreamComplete modelMsgId
+    FE Comp->>FE Comp: Finalize Model Message Status Local Dexie
+
+    alt On Error
+        GoogleAI-->>LLMRoute: Error Signal
+        LLMRoute-->>FE Hook: SSE event: error / data: {error}
+        FE Hook->>FE Comp: onStreamError modelMsgId, errorMsg
+        FE Comp->>FE Comp: Update Model Message with Error Local Dexie
+    end
+
+    alt On Abort
+        User/FE Comp->>FE Hook: abortStream
+        FE Hook->>LLMRoute: Aborts Fetch Request
+        Note over FE Hook, LLMRoute: Connection Closes
+    end

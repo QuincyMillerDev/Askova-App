@@ -1,0 +1,55 @@
+graph TD
+subgraph "User Interface"
+User[User] --> ReactComponents[React Components Pages, UI, Layouts]
+end
+
+subgraph "Client-Side Logic & State"
+Hooks[Custom Hooks useCreateQuiz, useLlmStream, etc.]
+TRPCReact[tRPC React Client api]
+ReactQuery[React Query QueryClient]
+NextRouter[Next.js Router useRouter]
+Session[NextAuth Session useSession]
+SidebarCtx[Sidebar Context]
+LocalServices[Local Services ChatMessageService, QuizService]
+end
+
+subgraph "Local Storage"
+DexieRepos[Dexie Repositories]
+DexieDB[Dexie / IndexedDB]
+end
+
+subgraph "Backend Communication"
+BackendAPI[Backend API tRPC, LLM Stream]
+end
+
+%% UI Interactions
+ReactComponents -- Uses --> Hooks
+ReactComponents -- Uses --> NextRouter
+ReactComponents -- Uses --> Session
+ReactComponents -- Uses --> SidebarCtx
+ReactComponents -- Renders Based On --> ReactQuery
+ReactComponents -- Renders Based On --> DexieDB
+
+%% Hook Interactions
+Hooks -- Use --> TRPCReact
+Hooks -- Use --> Session
+Hooks -- Use --> LocalServices
+Hooks -- Use --> NextRouter
+
+%% State Management
+TRPCReact -- Uses --> ReactQuery
+ReactQuery -- Caches Data From --> BackendAPI
+
+%% Local Data
+LocalServices -- Use --> DexieRepos
+DexieRepos -- CRUD --> DexieDB
+Hooks -- Trigger --> LocalServices
+
+%% Backend Calls
+TRPCReact -- tRPC Calls --> BackendAPI
+Hooks -- SSE Request via useLlmStream --> BackendAPI
+BackendAPI -- tRPC/SSE Responses --> Hooks
+
+style User fill:#f9f,stroke:#333,stroke-width:2px
+style DexieDB fill:#fcc,stroke:#333,stroke-width:2px
+style BackendAPI fill:#cfc,stroke:#333,stroke-width:2px
