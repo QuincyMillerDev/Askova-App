@@ -77,7 +77,7 @@ export const DEFAULT_SAFETY_SETTINGS: SafetySetting[] = [
     },
     {
         category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
         category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
