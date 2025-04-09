@@ -9,10 +9,9 @@
 - [x] Improve data syncing between Dexie and Prisma
 - [ ] Storing Files
 - [x] Update status fields for quizzes and messages
-- [ ] Allow for deleting quizzes or whole account
+- [ ] Sync user preferences (pinned quizzes, light/darkmode)
 
 ### Frontend
-- [ ] Support message editing
 - [x] Migrate existing UI from previous repository
 - [x] Add messages components that support markdown
 - [x] LLM response streaming on frontend
@@ -22,6 +21,8 @@
 - [ ] Highlight the selected quiz session
 - [ ] Warn users their quizzes will only be saved if they login
 - [ ] Implement Terms of Service and Privacy Policy pages
+- [ ] Delete quizzes
+- [ ] DARK MODE PLEASEEEE
 
 ### Core functionality
 - [ ] Setup study session flow:
