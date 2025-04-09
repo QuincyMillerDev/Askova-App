@@ -96,23 +96,7 @@
     left: 16rem; /* 256px/16 = 16rem, matching the sidebar width */
     width: calc(100% - 16rem);
   }
-
-  /* Animation for the streaming cursor */
-  .animate-pulse-fast {
-    animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.2;
-    }
-  }
 }
-
 
 /* Custom markdown styles */
 .markdown {
@@ -124,7 +108,10 @@
   @apply mb-4 leading-normal;
 }
 
-.markdown h1, .markdown h2, .markdown h3, .markdown h4 {
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
   @apply font-semibold mb-2 mt-6;
 }
 
@@ -144,7 +131,8 @@
   @apply text-base;
 }
 
-.markdown ul, .markdown ol {
+.markdown ul,
+.markdown ol {
   @apply pl-6 mb-4;
 }
 

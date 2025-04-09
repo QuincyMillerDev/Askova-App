@@ -14,7 +14,7 @@
 ### Frontend
 - [ ] Support message editing
 - [x] Migrate existing UI from previous repository
-- [ ] Add messages components that support markdown
+- [x] Add messages components that support markdown
 - [x] LLM response streaming on frontend
 - [x] Add settings/profile page
 - [ ] Add other settings/ pages
