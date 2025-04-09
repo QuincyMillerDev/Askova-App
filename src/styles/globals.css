@@ -96,6 +96,21 @@
     left: 16rem; /* 256px/16 = 16rem, matching the sidebar width */
     width: calc(100% - 16rem);
   }
+
+  /* Animation for the streaming cursor */
+  .animate-pulse-fast {
+    animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.2;
+    }
+  }
 }
 
 
@@ -185,5 +200,3 @@
 .bg-primary .markdown blockquote {
   @apply border-primary-foreground/30;
 }
-
-
