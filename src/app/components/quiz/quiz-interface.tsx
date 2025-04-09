@@ -16,25 +16,21 @@ import remarkGfm from "remark-gfm";
 import { type ChatMessage, db } from "~/db/dexie";
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
+import { useSendChatMessage } from "~/app/hooks/useSendChatMessage"; // For sending user messages
 import { v4 as uuidv4 } from "uuid";
-import { ChatMessageService } from "~/services/chatMessageService";
-import { useLlmStream } from "~/app/hooks/useLlmStream"; // Import the new hook
 
 interface QuizInterfaceProps {
     quizId: string;
 }
 
-// TODO: Refactor logic to upload finished AI responses to Prisma
-
-
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
-    const [isTyping, setIsTyping] = useState(false); // Still managed here
+    const [isTyping, setIsTyping] = useState(false); // Local state to manage loading indicator
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { sendMessageAndUpdate } = useSendChatMessage();
+    const { sendMessageAndUpdate } = useSendChatMessage(); // Hook for user messages
 
+    // Fetch messages reactively from Dexie
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () =>
             db.chatMessages
@@ -44,170 +40,56 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
         [quizId]
     );
 
+    // Memoize local messages derived from the live query
     const localMessages: ChatMessage[] = useMemo(
         () => liveMessages ?? [],
         [liveMessages]
     );
 
-    // --- Define Callbacks for the Hook ---
-    const handleChunkReceived = useCallback(
-        async (messageId: string, chunk: string) => {
-            // This replaces the logic inside the 'data:' block of the old processStream
-            await ChatMessageService.appendLocalMessageContent(
-                messageId,
-                "streaming", // Set status to streaming when chunk received
-                chunk
-            );
-        },
-        []
-    );
-
-    const handleStreamComplete = useCallback(async (messageId: string) => {
-        // This replaces the logic inside the 'event: done' block and the finalization logic
-        await ChatMessageService.updateLocalMessageStatus(messageId, "done");
-        setIsTyping(false); // Stop typing indicator on completion
-        console.log(
-            `[QuizInterface] Stream completed for message ${messageId}`
-        );
-    }, []);
-
-    const handleStreamError = useCallback(
-        async (
-            messageId: string,
-            errorMessage: string,
-            errorDetails?: unknown
-        ) => {
-            // This replaces the logic inside the 'event: error' block and catch blocks
-            console.error(
-                `[QuizInterface] Stream error for message ${messageId}: ${errorMessage}`,
-                errorDetails
-            );
-            // Update the specific message with the error status and content
-            await ChatMessageService.updateLocalMessageStatus(
-                messageId,
-                "error",
-                errorMessage // Use the processed error message for display
-            );
-            setIsTyping(false); // Stop typing indicator on error
-        },
-        []
-    );
-
-    // --- Initialize the Hook ---
-    const { startStream, abortStream } = useLlmStream("/api/llm-stream", {
-        onChunkReceived: handleChunkReceived,
-        onStreamComplete: handleStreamComplete,
-        onStreamError: handleStreamError,
-    });
-
     // --- Effects ---
     useEffect(() => {
+        // Component load animation effect
         setIsLoaded(false);
         const timer = setTimeout(() => setIsLoaded(true), 50);
+        // Reset typing state if quiz changes
+        setIsTyping(false);
         return () => clearTimeout(timer);
     }, [quizId]);
 
     useEffect(() => {
+        // Scroll to bottom when messages change
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [localMessages]);
 
-    // Cleanup effect to abort stream on quiz change or unmount
-    useEffect(() => {
-        return () => {
+    // --- Function to Trigger AI Response Placeholder ---
+    const triggerAIResponsePlaceholder = useCallback(
+        async (userMessage: ChatMessage) => {
             console.log(
-                "[QuizInterface] Unmounting or quizId changed, aborting stream."
-            );
-            abortStream();
-        };
-    }, [quizId, abortStream]); // Add abortStream as dependency
-
-    // Remove the old processStream useCallback
-
-    // --- Function to Trigger AI Response (Uses the hook's startStream) ---
-    const triggerAIResponse = useCallback(
-        async (userMessage: ChatMessage, history: ChatMessage[]) => {
-            if (!quizId || isTyping) return;
-
-            console.log(
-                `[AI Trigger] Triggering AI for message ${userMessage.id} in quiz ${quizId}`
+                `[Placeholder Trigger] placeholder for AI response after message ${userMessage.id} in quiz ${quizId}`
             );
 
-            // Abort any previous stream via the hook's function
-            abortStream();
-
-            const historyForApi = history.map((msg) => ({
-                role: msg.role,
-                content: msg.content,
-            }));
-
+            // Generate ID for the placeholder message
             const modelMessageId = uuidv4();
             const modelMessagePlaceholder: ChatMessage = {
                 id: modelMessageId,
                 quizId: quizId,
                 role: "model",
                 content: "",
-                createdAt: new Date(userMessage.createdAt.getTime() + 1),
-                status: "waiting", // Start as waiting
+                createdAt: new Date(userMessage.createdAt.getTime() + 1), // Ensure it's ordered after user msg
+                status: "waiting",
             };
-
-            setIsTyping(true); // Start loading indicator *before* API call
-
-            try {
-                // Save AI placeholder locally *before* API call
-                await ChatMessageService.addOrUpdateLocalMessage(
-                    modelMessagePlaceholder
-                );
-
-                // Prepare payload for the hook
-                const payload = {
-                    history: historyForApi,
-                    latestUserMessageContent: userMessage.content,
-                };
-
-                // Start the stream using the hook
-                await startStream(payload, modelMessageId);
-                // NOTE: We don't await the full stream here, startStream initiates it.
-                // The callbacks (handleChunkReceived, etc.) will handle updates.
-            } catch (error) {
-                // Errors during the *initiation* of the stream (e.g., saving placeholder)
-                // Stream processing errors are handled by handleStreamError callback.
-                console.error(
-                    "[AI Trigger] Error setting up AI response:",
-                    error
-                );
-                await ChatMessageService.updateLocalMessageStatus(
-                    modelMessageId,
-                    "error",
-                    "Failed to initiate AI response"
-                );
-                setIsTyping(false); // Ensure typing indicator stops
-            }
         },
-        [quizId, isTyping, startStream, abortStream] // Add hook functions as dependencies
+        [quizId] // Dependencies
     );
 
-    // --- Effect to Trigger Initial AI Response ---
-    useEffect(() => {
-        if (
-            localMessages &&
-            localMessages.length === 1 &&
-            localMessages[0]?.role === "user" &&
-            !isTyping
-        ) {
-            console.log(
-                `[Initial Trigger] Detected new quiz ${quizId} with one user message. Triggering AI.`
-            );
-            const firstMessage = localMessages[0];
-            void triggerAIResponse(firstMessage, []);
-        }
-    }, [quizId, localMessages, isTyping, triggerAIResponse]);
-
-    // --- handleSubmit  ---
+    // --- handleSubmit for User Messages ---
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const trimmedInput = input.trim();
+        // Prevent submission if input is empty, no quizId, or AI is "typing"
         if (!trimmedInput || !quizId || isTyping) return;
 
+        // Create the user message object
         const userMessageId = uuidv4();
         const userMessage: ChatMessage = {
             id: userMessageId,
@@ -215,22 +97,24 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
-            status: "done",
+            status: "done", // User messages are immediately 'done' locally
         };
 
-        setInput("");
-        const historyBeforeNewMessage = [...localMessages];
+        setInput(""); // Clear the input field
 
         try {
+            // Save the user message (locally via service, remotely via hook if authenticated)
             await sendMessageAndUpdate(userMessage);
-            // Trigger AI response using the new message and the history *before* it
-            await triggerAIResponse(userMessage, historyBeforeNewMessage);
+
+            // Trigger the creation of the AI response placeholder
+            // Use void as we don't need to await the placeholder creation setup
+            void triggerAIResponsePlaceholder(userMessage);
         } catch (error) {
             console.error(
-                "Error saving user message or triggering AI:",
+                "Error saving user message or triggering AI placeholder:",
                 error
             );
-            // Maybe show error to user
+            // TODO: Consider showing an error message to the user
         }
     };
 
@@ -245,6 +129,7 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                             isLoaded ? "opacity-100" : "opacity-0"
                         )}
                     >
+                        {/* Display messages from localMessages */}
                         {localMessages.map((message) => (
                             <div
                                 key={message.id}
@@ -261,11 +146,12 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                                             ? "bg-primary text-primary-foreground"
                                             : "bg-muted text-muted-foreground",
                                         "shadow-sm",
+                                        // Visual cues for non-'done' statuses
                                         message.status === "waiting" &&
                                         "opacity-70 italic",
-                                        message.status === "streaming" &&
+                                        message.status === "streaming" && // Keep for potential future use
                                         "opacity-90",
-                                        message.status === "error" &&
+                                        message.status === "error" && // Keep for potential future use
                                         "bg-destructive/20 text-destructive border border-destructive"
                                     )}
                                     style={{ overflowWrap: "break-word" }}
@@ -274,34 +160,36 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                                         <ReactMarkdown
                                             remarkPlugins={[remarkGfm]}
                                         >
-                                            {message.status === "waiting"
+                                            {/* Show '...' if waiting and content is empty */}
+                                            {message.status === "waiting" &&
+                                            !message.content
                                                 ? "..."
                                                 : message.content}
                                         </ReactMarkdown>
                                     </div>
-                                    {message.status === "error" && (
-                                        <p className="text-xs mt-1 text-destructive/80">
-                                            {/* Display the error content which was set in handleStreamError */}
-                                            {message.content}
-                                        </p>
-                                    )}
+                                    {/* Keep error display logic for potential future use */}
+                                    {message.status === "error" &&
+                                        message.role === "model" && (
+                                            <p className="text-xs mt-1 text-destructive/80">
+                                                Error: {message.content}
+                                            </p>
+                                        )}
                                 </div>
                             </div>
                         ))}
 
-                        {isTyping &&
-                            localMessages[localMessages.length - 1]?.role !==
-                            "model" && ( // Ensure placeholder exists before showing typing
-                                <div className="flex justify-start">
-                                    <div className="max-w-[80%] rounded-lg p-4 bg-muted">
-                                        <div className="flex space-x-2">
-                                            <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                            <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                            <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        </div>
+                        {/* Typing Indicator based on local isTyping state */}
+                        {isTyping && (
+                            <div className="flex justify-start">
+                                <div className="max-w-[80%] rounded-lg p-4 bg-muted">
+                                    <div className="flex space-x-2">
+                                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                        <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                                        <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
@@ -310,8 +198,8 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                     input={input}
                     onInputChange={(e) => setInput(e.target.value)}
                     onSubmit={handleSubmit}
-                    isTyping={isTyping} // Pass the component's isTyping state
-                    disabled={!quizId}
+                    isTyping={isTyping} // Use local isTyping state
+                    disabled={!quizId || !isLoaded} // Disable input while loading/no quizId
                 />
             </div>
         </div>
