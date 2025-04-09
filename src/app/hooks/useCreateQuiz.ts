@@ -1,9 +1,9 @@
 // src/app/hooks/useCreateQuiz.ts
 import { db, type ChatMessage, type Quiz } from "~/db/dexie"; // Import db for transaction
 import { useSession } from "next-auth/react";
-import { QuizService } from "~/services/quizService";
-import { ChatMessageService } from "~/services/chatMessageService";
-import syncService from "~/services/syncService";
+import { QuizService } from "~/server/services/quizService";
+import { ChatMessageService } from "~/server/services/chatMessageService";
+import syncService from "~/server/services/syncService";
 import { useCallback } from "react";
 
 export function useCreateQuiz() {

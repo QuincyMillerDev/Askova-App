@@ -16,8 +16,10 @@ import remarkGfm from "remark-gfm";
 import { type ChatMessage, db } from "~/db/dexie";
 import { QuizInput } from "~/app/components/quiz/quiz-input";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSendChatMessage } from "~/app/hooks/useSendChatMessage"; // For sending user messages
+import { useSendChatMessage } from "~/app/hooks/useSendChatMessage";
+import { useLLMStreaming } from "~/app/hooks/useLLMStreaming";
 import { v4 as uuidv4 } from "uuid";
+import {ChatMessageService} from "~/server/services/chatMessageService";
 
 interface QuizInterfaceProps {
     quizId: string;
@@ -25,22 +27,18 @@ interface QuizInterfaceProps {
 
 export function QuizInterface({ quizId }: QuizInterfaceProps) {
     const [input, setInput] = useState("");
-    const [isTyping, setIsTyping] = useState(false); // Local state to manage loading indicator
     const [isLoaded, setIsLoaded] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { sendMessageAndUpdate } = useSendChatMessage(); // Hook for user messages
+    const initialTriggeredRef = useRef(false);
+    const { sendMessageAndUpdate } = useSendChatMessage();
+    const { startStreaming, isStreaming, error: streamError } = useLLMStreaming();
 
-    // Fetch messages reactively from Dexie
     const liveMessages: ChatMessage[] | undefined = useLiveQuery(
         () =>
-            db.chatMessages
-                .where("quizId")
-                .equals(quizId)
-                .sortBy("createdAt"),
+            db.chatMessages.where("quizId").equals(quizId).sortBy("createdAt"),
         [quizId]
     );
 
-    // Memoize local messages derived from the live query
     const localMessages: ChatMessage[] = useMemo(
         () => liveMessages ?? [],
         [liveMessages]
@@ -48,48 +46,120 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
 
     // --- Effects ---
     useEffect(() => {
-        // Component load animation effect
         setIsLoaded(false);
+        initialTriggeredRef.current = false;
         const timer = setTimeout(() => setIsLoaded(true), 50);
-        // Reset typing state if quiz changes
-        setIsTyping(false);
         return () => clearTimeout(timer);
     }, [quizId]);
 
     useEffect(() => {
-        // Scroll to bottom when messages change
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [localMessages]);
 
-    // --- Function to Trigger AI Response Placeholder ---
-    const triggerAIResponsePlaceholder = useCallback(
-        async (userMessage: ChatMessage) => {
-            console.log(
-                `[Placeholder Trigger] placeholder for AI response after message ${userMessage.id} in quiz ${quizId}`
-            );
+    // --- Function to Create AI Placeholder and Start Streaming ---
+    const createPlaceholderAndStream = useCallback(
+        async (userMessage: ChatMessage, historyForLLM: ChatMessage[]) => {
+            // Only prevent if a stream is *actively* running
+            if (isStreaming) {
+                console.warn(
+                    `[Quiz Interface] Streaming already active for quiz ${quizId}. Skipping new stream request.`
+                );
+                return;
+            }
 
-            // Generate ID for the placeholder message
+
+            console.log(
+                `[Quiz Interface] Creating placeholder and starting stream for quiz ${quizId} after user message ${userMessage.id}`
+            );
             const modelMessageId = uuidv4();
             const modelMessagePlaceholder: ChatMessage = {
                 id: modelMessageId,
                 quizId: quizId,
                 role: "model",
                 content: "",
-                createdAt: new Date(userMessage.createdAt.getTime() + 1), // Ensure it's ordered after user msg
+                createdAt: new Date(userMessage.createdAt.getTime() + 1),
                 status: "waiting",
             };
+
+            try {
+                await ChatMessageService.addOrUpdateLocalMessage(
+                    modelMessagePlaceholder
+                );
+                console.log(
+                    `[Quiz Interface] Saved placeholder ${modelMessageId} with status 'waiting'.`
+                );
+
+                const streamingOptions = {
+                    history: historyForLLM.map((msg) => ({
+                        role: msg.role,
+                        content: msg.content,
+                    })),
+                    latestUserMessageContent: userMessage.content,
+                    correlationId: modelMessageId,
+                };
+
+                void startStreaming(streamingOptions); // Use void, don't await full stream
+                console.log(
+                    `[Quiz Interface] Called startStreaming for ${modelMessageId}.`
+                );
+            } catch (error) {
+                console.error(
+                    "[Quiz Interface] Error creating placeholder or starting stream:",
+                    error
+                );
+                await ChatMessageService.updateLocalMessageStatus(
+                    modelMessageId,
+                    "error",
+                    "Failed to initiate AI response."
+                );
+            }
         },
-        [quizId] // Dependencies
+        // Dependency removed: localMessages (no longer needed for the check here)
+        [quizId, startStreaming, isStreaming]
     );
+
+    // --- Effect to Trigger Initial AI Response ---
+    useEffect(() => {
+        // Check if a model message already exists in the current set
+        const modelMessageExists = localMessages.some((m) => m.role === "model");
+
+        // Conditions to trigger:
+        // 1. Messages loaded
+        // 2. Exactly one message
+        // 3. Message is from 'user'
+        // 4. No model message exists yet <--- ADDED CHECK HERE
+        // 5. Initial trigger ref is false
+        // 6. Not currently streaming
+        if (
+            liveMessages &&
+            localMessages.length === 1 &&
+            localMessages[0]?.role === "user" &&
+            !modelMessageExists && // <-- Check moved here
+            !initialTriggeredRef.current &&
+            !isStreaming
+        ) {
+            console.log(
+                `[Quiz Interface Effect] Triggering initial AI response for quiz ${quizId}`
+            );
+            initialTriggeredRef.current = true;
+            const userMessage = localMessages[0];
+            const historyForLLM = [userMessage];
+            void createPlaceholderAndStream(userMessage, historyForLLM);
+        }
+    }, [
+        liveMessages,
+        localMessages, // Keep dependency here for the check
+        quizId,
+        isStreaming,
+        createPlaceholderAndStream, // Keep dependency
+    ]);
 
     // --- handleSubmit for User Messages ---
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const trimmedInput = input.trim();
-        // Prevent submission if input is empty, no quizId, or AI is "typing"
-        if (!trimmedInput || !quizId || isTyping) return;
+        if (!trimmedInput || !quizId || isStreaming) return;
 
-        // Create the user message object
         const userMessageId = uuidv4();
         const userMessage: ChatMessage = {
             id: userMessageId,
@@ -97,28 +167,31 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
             role: "user",
             content: trimmedInput,
             createdAt: new Date(),
-            status: "done", // User messages are immediately 'done' locally
+            status: "done",
         };
 
-        setInput(""); // Clear the input field
+        setInput("");
 
         try {
-            // Save the user message (locally via service, remotely via hook if authenticated)
             await sendMessageAndUpdate(userMessage);
+            // Prepare history *including* the new user message
+            // Use a temporary array based on current state + new message
+            // Note: localMessages might not have updated *instantly* from useLiveQuery
+            // after sendMessageAndUpdate, so explicitly include the new message.
+            const currentHistory = liveMessages ?? []; // Get latest from liveQuery if available
+            const historyForLLM = [...currentHistory, userMessage];
 
-            // Trigger the creation of the AI response placeholder
-            // Use void as we don't need to await the placeholder creation setup
-            void triggerAIResponsePlaceholder(userMessage);
+            // Trigger AI response
+            void createPlaceholderAndStream(userMessage, historyForLLM);
         } catch (error) {
             console.error(
-                "Error saving user message or triggering AI placeholder:",
+                "Error saving user message or triggering AI response:",
                 error
             );
-            // TODO: Consider showing an error message to the user
         }
     };
 
-    // --- JSX Rendering ---
+    // --- JSX Rendering (remains the same) ---
     return (
         <div className="flex h-full w-full">
             <div className="flex-1 relative w-full">
@@ -129,77 +202,80 @@ export function QuizInterface({ quizId }: QuizInterfaceProps) {
                             isLoaded ? "opacity-100" : "opacity-0"
                         )}
                     >
-                        {/* Display messages from localMessages */}
-                        {localMessages.map((message) => (
-                            <div
-                                key={message.id}
-                                className={`flex ${
-                                    message.role === "user"
-                                        ? "justify-end"
-                                        : "justify-start"
-                                }`}
-                            >
-                                <div
-                                    className={cn(
-                                        "max-w-[85%] rounded-lg p-3 md:p-4",
-                                        message.role === "user"
-                                            ? "bg-primary text-primary-foreground"
-                                            : "bg-muted text-muted-foreground",
-                                        "shadow-sm",
-                                        // Visual cues for non-'done' statuses
-                                        message.status === "waiting" &&
-                                        "opacity-70 italic",
-                                        message.status === "streaming" && // Keep for potential future use
-                                        "opacity-90",
-                                        message.status === "error" && // Keep for potential future use
-                                        "bg-destructive/20 text-destructive border border-destructive"
-                                    )}
-                                    style={{ overflowWrap: "break-word" }}
-                                >
-                                    <div className="markdown">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                        >
-                                            {/* Show '...' if waiting and content is empty */}
-                                            {message.status === "waiting" &&
-                                            !message.content
-                                                ? "..."
-                                                : message.content}
-                                        </ReactMarkdown>
-                                    </div>
-                                    {/* Keep error display logic for potential future use */}
-                                    {message.status === "error" &&
-                                        message.role === "model" && (
-                                            <p className="text-xs mt-1 text-destructive/80">
-                                                Error: {message.content}
-                                            </p>
-                                        )}
-                                </div>
-                            </div>
-                        ))}
+                        {localMessages.map((message) => {
+                            const markdownContent =
+                                message.status === "waiting" && !message.content
+                                    ? "..."
+                                    : message.content || "";
 
-                        {/* Typing Indicator based on local isTyping state */}
-                        {isTyping && (
-                            <div className="flex justify-start">
-                                <div className="max-w-[80%] rounded-lg p-4 bg-muted">
-                                    <div className="flex space-x-2">
-                                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-100 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                                        <div className="animation-delay-200 h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                            return (
+                                <div
+                                    key={message.id}
+                                    className={`flex ${
+                                        message.role === "user" ? "justify-end" : "justify-start"
+                                    }`}
+                                >
+                                    <div
+                                        className={cn(
+                                            "max-w-[85%] rounded-lg p-3 md:p-4",
+                                            message.role === "user"
+                                                ? "bg-primary text-primary-foreground"
+                                                : "bg-muted text-muted-foreground",
+                                            "shadow-sm",
+                                            message.status === "waiting" &&
+                                            "opacity-70 italic animate-pulse",
+                                            message.status === "streaming" && "opacity-90",
+                                            message.status === "error" &&
+                                            "bg-destructive/20 text-destructive border border-destructive"
+                                        )}
+                                        style={{ overflowWrap: "break-word" }}
+                                    >
+                                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {markdownContent}
+                                            </ReactMarkdown>
+                                            {message.status === "streaming" && (
+                                                <span className="inline-block h-4 w-1 animate-pulse bg-current ml-1 align-bottom"></span>
+                                            )}
+                                        </div>
+                                        {message.status === "error" &&
+                                            message.role === "model" && (
+                                                <p className="text-xs mt-1 text-destructive/80">
+                                                    Error:{" "}
+                                                    {message.content.startsWith("LLM Error:") ||
+                                                    message.content.startsWith("Failed to initiate") ||
+                                                    message.content.startsWith(
+                                                        "Unknown streaming error"
+                                                    ) ||
+                                                    message.content.startsWith(
+                                                        "Stream cancelled by user."
+                                                    )
+                                                        ? message.content
+                                                        : "An error occurred."}
+                                                </p>
+                                            )}
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })}
                         <div ref={messagesEndRef} />
                     </div>
                 </ScrollArea>
+
+                {streamError && (
+                    <div className="absolute bottom-24 left-0 right-0 mx-auto max-w-4xl px-4">
+                        <p className="text-center text-xs text-destructive">
+                            Stream Error: {streamError}
+                        </p>
+                    </div>
+                )}
 
                 <QuizInput
                     input={input}
                     onInputChange={(e) => setInput(e.target.value)}
                     onSubmit={handleSubmit}
-                    isTyping={isTyping} // Use local isTyping state
-                    disabled={!quizId || !isLoaded} // Disable input while loading/no quizId
+                    isTyping={isStreaming}
+                    disabled={!quizId || !isLoaded || isStreaming}
                 />
             </div>
         </div>

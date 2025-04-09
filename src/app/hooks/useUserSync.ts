@@ -1,6 +1,6 @@
 // src/app/hooks/useUserSync.ts
 import { useCallback, useState } from "react";
-import syncService from "~/services/syncService";
+import syncService from "~/server/services/syncService";
 
 export function useUserSync() {
     const [isSyncing, setIsSyncing] = useState(false);

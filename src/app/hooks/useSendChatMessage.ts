@@ -1,8 +1,8 @@
 // src/app/hooks/useSendChatMessage.ts
 import { useSession } from "next-auth/react";
-import { ChatMessageService } from "~/services/chatMessageService";
+import { ChatMessageService } from "~/server/services/chatMessageService";
 import { type ChatMessage } from "~/db/dexie";
-import syncService from "~/services/syncService"; // Import the refactored service
+import syncService from "~/server/services/syncService"; // Import the refactored service
 
 export function useSendChatMessage() {
     const { data: session } = useSession();

@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 
 // Define the expected input schema for the request body
+// Added optional correlationId
 const llmStreamInputSchema = z.object({
     history: z.array(
         z.object({
@@ -20,10 +21,10 @@ const llmStreamInputSchema = z.object({
         })
     ),
     latestUserMessageContent: z.string(),
-    // quizId: z.string().optional(), // Keep if useful for logging
+    correlationId: z.string().optional(), // Optional ID for the placeholder message
 });
 
-// Initialize Gemini Client
+// Initialize Gemini Client (outside the handler for potential reuse)
 const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
 const model = genAI.getGenerativeModel({
     model: MODEL_NAME,
@@ -34,7 +35,6 @@ const model = genAI.getGenerativeModel({
     safetySettings: DEFAULT_SAFETY_SETTINGS,
 });
 
-// --- Change GET to POST ---
 export async function POST(req: NextRequest) {
     try {
         // --- Get Data from Request Body ---
@@ -55,8 +55,12 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
-        const { history, latestUserMessageContent } = parseResult.data;
-        // const quizId = parseResult.data.quizId; // Optional for logging
+        // Destructure correlationId as well
+        const { history, latestUserMessageContent, correlationId } =
+            parseResult.data;
+        console.log(
+            `[SSE] Received request. CorrelationId: ${correlationId ?? "N/A"}`
+        );
 
         // --- Format History for Gemini (from request body) ---
         const formattedHistory: Content[] = history.map((msg) => ({
@@ -70,52 +74,66 @@ export async function POST(req: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    // console.log(`[SSE] Starting generation for quiz ${quizId ?? 'N/A'}`); // Optional logging
-                    console.log(`[SSE] Starting generation...`);
+                    console.log(
+                        `[SSE START] Starting generation. CorrelationId: ${
+                            correlationId ?? "N/A"
+                        }`
+                    );
                     const chat = model.startChat({
                         history: formattedHistory,
                         generationConfig: DEFAULT_GENERATION_CONFIG,
                     });
 
-                    const result = await chat.sendMessageStream(
-                        latestUserMessageContent
-                    );
+                    const result = await chat.sendMessageStream(latestUserMessageContent);
 
                     // Stream chunks
                     for await (const chunk of result.stream) {
+                        // Check if the stream was cancelled (e.g., client disconnected)
+                        // Note: This requires more robust cancellation handling, potentially involving AbortController
+                        // if the underlying SDK supports it well with streams. For now, we rely on the loop break.
+
                         const chunkText = chunk.text();
                         if (chunkText) {
                             // Format as SSE message: data: <json-stringified-chunk>\n\n
-                            controller.enqueue(
-                                encoder.encode(`data: ${JSON.stringify(chunkText)}\n\n`)
-                            );
+                            const message = `data: ${JSON.stringify(chunkText)}\n\n`;
+                            // console.log(`[SSE DATA] Sending chunk for ${correlationId ?? 'N/A'}: ${chunkText.substring(0, 50)}...`); // Log chunk start
+                            controller.enqueue(encoder.encode(message));
                         }
                     }
                     // Signal completion
-                    controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
-                    // console.log(`[SSE] Stream completed for quiz ${quizId ?? 'N/A'}`); // Optional logging
-                    console.log(`[SSE] Stream completed.`);
+                    const doneMessage = "event: done\ndata: {}\n\n";
+                    controller.enqueue(encoder.encode(doneMessage));
+                    console.log(
+                        `[SSE DONE] Stream completed. CorrelationId: ${
+                            correlationId ?? "N/A"
+                        }`
+                    );
                     controller.close();
                 } catch (error) {
                     console.error(
-                        // `[SSE ERROR] LLM generation failed for quiz ${quizId ?? 'N/A'}:`, // Optional logging
-                        `[SSE ERROR] LLM generation failed:`,
+                        `[SSE ERROR] LLM generation failed. CorrelationId: ${
+                            correlationId ?? "N/A"
+                        }:`,
                         error
                     );
                     const errorMessage =
-                        error instanceof Error ? error.message : "Unknown error";
+                        error instanceof Error ? error.message : "Unknown LLM error";
                     // Signal error
-                    controller.enqueue(
-                        encoder.encode(
-                            `event: error\ndata: ${JSON.stringify({ message: `LLM Error: ${errorMessage}` })}\n\n`
-                        )
-                    );
+                    const errorEvent = `event: error\ndata: ${JSON.stringify({
+                        message: `LLM Error: ${errorMessage}`,
+                    })}\n\n`;
+                    controller.enqueue(encoder.encode(errorEvent));
                     controller.close(); // Close stream on error
                 }
             },
-            cancel() {
-                // console.log(`[SSE] Stream cancelled for quiz ${quizId ?? 'N/A'}`); // Optional logging
-                console.log(`[SSE] Stream cancelled.`);
+            cancel(reason) {
+                console.log(
+                    `[SSE CANCEL] Stream cancelled. CorrelationId: ${
+                        correlationId ?? "N/A"
+                    }. Reason:`,
+                    reason
+                );
+                // Optional: Add logic here if the Gemini SDK needs explicit cancellation
             },
         });
 
@@ -124,7 +142,7 @@ export async function POST(req: NextRequest) {
                 "Content-Type": "text/event-stream",
                 "Cache-Control": "no-cache",
                 Connection: "keep-alive",
-                // Optional: Add CORS headers if needed
+                // Optional: Add CORS headers if needed for different origins
                 // 'Access-Control-Allow-Origin': '*',
             },
         });
