@@ -37,6 +37,7 @@
 
 ### BUGS
 - [ ] Google Avatar not working?
+- [ ] LLM sometimes cannot parse stream, only happens on first load/message, unauthenticated
 
   ## Relevant Docs
 - [Next.js](https://nextjs.org)
